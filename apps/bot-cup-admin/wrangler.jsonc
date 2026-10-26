@@ -70,7 +70,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true },
-      "vars": { "BOT_CUP_EVENT_ID": "showcase-unset", "BOT_CUP_WEB_ORIGIN": "https://ottv2-staging.vercel.app", "ADMIN_AUTH_MODE": "demo" },
+      "vars": { "BOT_CUP_EVENT_ID": "showcase-unset", "BOT_CUP_WEB_ORIGIN": "https://ottv2-bot-cup-showcase-web.opticsquang.workers.dev", "ADMIN_AUTH_MODE": "demo" },
       "d1_databases": [
         {
           "binding": "DB",

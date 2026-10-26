@@ -73,7 +73,8 @@ không chạy: runner giả lập đánh bằng AI trong game theo "sức mạnh
 
 1. `npm run bot-cup:showcase -- seed --freeze-in 2`: tạo sự kiện mới `showcase-<giờ UTC>` (100 đội, nhánh 16) trên D1 staging.
    Bài nộp không xoá được nên mỗi lần demo là một sự kiện mới; sự kiện hiện tại ghi ở `var/bot-cup/showcase/current.json`.
-2. `npm run bot-cup:showcase -- deploy`: deploy `ottv2-bot-cup-api-showcase` và `ottv2-bot-cup-admin-showcase` trỏ vào sự kiện đó.
+2. `npm run bot-cup:showcase -- deploy`: deploy `ottv2-bot-cup-api-showcase` và `ottv2-bot-cup-admin-showcase` trỏ vào sự kiện đó,
+   rồi trang công khai `ottv2-bot-cup-showcase-web` (bản build web có bật Bot Cup, chuyển `/api/t` sang API showcase).
    Lần đầu cần secret cho API: `OTP_PEPPER` (ngẫu nhiên ≥ 16 ký tự) và `TURNSTILE_SECRET` (khoá test `1x0000000000000000000000000000000AA`).
 3. Runner giả lập (một lần: `node scripts/bot-cup/runner-token.mjs showcase-sim --env staging`):
    `BOT_CUP_RUNNER_URL=https://ottv2-bot-cup-api-showcase.opticsquang.workers.dev BOT_CUP_RUNNER_TOKEN_FILE=var/bot-cup/runner-token-showcase-sim.txt BOT_CUP_RUNNER_SIMULATE=true BOT_CUP_RUNNER_SLOTS=8 npm run bot-cup:runner`.
@@ -81,3 +82,7 @@ không chạy: runner giả lập đánh bằng AI trong game theo "sức mạnh
 4. Điều phối: bấm tay trên https://ottv2-bot-cup-admin-showcase.opticsquang.workers.dev (đăng nhập demo một bấm), bấm
    *Tự chạy tới hết* ở tab Điều phối giải (chỉ có ở chế độ demo), hoặc chạy `npm run bot-cup:showcase -- drive`. Hai cách tự
    động cùng một thứ tự bước, cho 4 hạt giống đầu đạt phỏng vấn. Tab *Nhánh đấu* có link sang trang công khai và màn trình chiếu.
+5. Người xem: https://ottv2-bot-cup-showcase-web.opticsquang.workers.dev/?view=bot-cup&screen=bracket (nhánh đấu, các vòng Swiss,
+   replay) và `&screen=projector` (trình chiếu; phím B hiện cả cây). Trang này chỉ phục vụ Bot Cup: chơi online báo không khả dụng.
+6. Muốn trình diễn lại từ đầu: lặp lại bước 1–4. Sự kiện cũ vẫn nằm trong D1; muốn quay lại sự kiện cũ thì sửa `eventId` trong
+   `current.json` rồi chạy lại bước 2.

@@ -19,6 +19,7 @@
     "dev:web": "vite --config apps/web/vite.config.ts",
     "build:web": "vite build --config apps/web/vite.config.ts",
     "build:admin": "vite build --config apps/bot-cup-admin/vite.config.ts",
+    "build:showcase-web": "node scripts/bot-cup/build-showcase-web.mjs",
     "dev:admin": "vite --config apps/bot-cup-admin/vite.config.ts",
     "test:admin": "vitest run --config apps/bot-cup-admin/vitest.config.ts",
     "typecheck:admin": "tsc -p apps/bot-cup-admin/tsconfig.json --noEmit",

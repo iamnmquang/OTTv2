@@ -13,3 +13,4 @@ var/arena/
 __pycache__/
 var/bot-cup/
 apps/bot-cup-admin/public/
+apps/bot-cup-showcase-web/public/
