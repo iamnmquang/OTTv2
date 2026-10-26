@@ -37,14 +37,16 @@ export interface BotCupScreenProps {
   readonly inviteToken?: string | null;
   /** Opens a validated Arena replay document in the replay viewer. */
   readonly onStartReplay?: (document: ReplayDocument) => void;
+  /** `results` opens straight on the bracket (`?view=bot-cup&screen=bracket`). */
+  readonly initialTab?: BotCupTab;
 }
 
 type Load = { readonly status: "loading" } | { readonly status: "error"; readonly message: string } | { readonly status: "ready"; readonly event: BotCupEvent; readonly team: TeamView | null };
 
 /** The Bot Cup flow (plan §4.1): event info for guests, registration and login, then the team page. */
-export function BotCupScreen({ gateway, onLobby, inviteToken = null, onStartReplay }: BotCupScreenProps) {
+export function BotCupScreen({ gateway, onLobby, inviteToken = null, onStartReplay, initialTab }: BotCupScreenProps) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
-  const [tab, setTab] = useState<BotCupTab>("team");
+  const [tab, setTab] = useState<BotCupTab>(initialTab ?? "team");
   const [authMode, setAuthMode] = useState<"register" | "login">("register");
   const [invite, setInvite] = useState(inviteToken);
   const [notice, setNotice] = useState<string | null>(null);
@@ -140,7 +142,7 @@ export function BotCupScreen({ gateway, onLobby, inviteToken = null, onStartRepl
           )}
         </div>
       ) : null}
-      {tab === "results" ? <TournamentPanel gateway={gateway} signedIn={Boolean(team)} onOpenReplay={openReplay} /> : null}
+      {tab === "results" ? <TournamentPanel gateway={gateway} signedIn={Boolean(team)} onOpenReplay={openReplay} initialSection={initialTab === "results" ? "bracket" : undefined} /> : null}
       {tab === "leaderboard" ? <div className={styles.body}><LeaderboardPanel gateway={gateway} /></div> : null}
       {tab === "rules" ? <div className={styles.body}><BotCupRules event={event} /></div> : null}
       {tab === "schedule" ? <div className={styles.body}><BotCupSchedule event={event} /></div> : null}

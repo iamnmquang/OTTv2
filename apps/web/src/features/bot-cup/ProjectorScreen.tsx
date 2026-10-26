@@ -10,10 +10,11 @@ import { validateReplayDocument } from "../../../../../packages/arena/src/contra
 import type { BotCupApiGateway, KnockoutGame, KnockoutPairing, TournamentView } from "./BotCupApiGateway";
 import { botCupErrorMessage } from "./botCupMessages";
 import { MAP_LABELS, reasonLabel } from "./matchFormat";
+import { KnockoutTree } from "./bracket/KnockoutTree";
+import { slotLabel } from "./bracket/bracketFormat";
 import styles from "./projector.module.css";
 
 const SPEEDS: readonly ReplaySpeed[] = [0.5, 1, 2, 4];
-const SLOT_LABELS: Readonly<Record<string, string>> = { SF1: "Bán kết 1", SF2: "Bán kết 2", F: "Chung kết", "3RD": "Tranh hạng ba" };
 const score = (points: number) => (Number.isInteger(points) ? String(points) : points.toFixed(1).replace(".", ","));
 
 /** Teams of a game in colour order: who held Red, who held Blue. */
@@ -41,6 +42,7 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
   const [session, setSession] = useState<ReplaySession | null>(null);
   const [playback, setPlayback] = useState<ReplayPlaybackView>(INITIAL_PLAYBACK_VIEW);
   const [loading, setLoading] = useState(false);
+  const [showBracket, setShowBracket] = useState(false);
   const snapshot = useSessionSnapshot(session);
 
   const load = useCallback(async () => {
@@ -144,7 +146,8 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
         "+": () => changeSpeed(1), "=": () => changeSpeed(1), "-": () => changeSpeed(-1),
         n: () => moveGame(1), N: () => moveGame(1), p: () => moveGame(-1), P: () => moveGame(-1),
         "]": () => movePairing(1), "[": () => movePairing(-1),
-        r: () => void load(), R: () => void load()
+        r: () => void load(), R: () => void load(),
+        b: () => setShowBracket((open) => !open), B: () => setShowBracket((open) => !open)
       };
       const action = actions[event.key];
       if (!action) return;
@@ -168,9 +171,10 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
       <header className={styles.top}>
         <div>
           <p className={styles.kicker}>OTT Bot Cup · Trình chiếu</p>
-          <h1 className={styles.title}>{pairing ? `${SLOT_LABELS[pairing.slot] ?? pairing.slot}` : "Chưa có cặp loại trực tiếp"}</h1>
+          <h1 className={styles.title}>{showBracket ? "Nhánh loại trực tiếp" : pairing ? slotLabel(pairing.slot) : "Chưa có cặp loại trực tiếp"}</h1>
         </div>
         <div className={styles.actions}>
+          <button type="button" aria-pressed={showBracket} onClick={() => setShowBracket((open) => !open)}>Nhánh đấu</button>
           <button type="button" onClick={fullscreen}>Toàn màn hình</button>
           <button type="button" onClick={onExit}>Thoát</button>
         </div>
@@ -178,7 +182,20 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
 
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
 
-      {pairing ? (
+      {showBracket && view ? (
+        <div className={styles.bracket}>
+          <KnockoutTree bracket={view.bracket} large selected={pairing?.slot ?? null} onSelect={(slot) => {
+            const index = pairings.findIndex((item) => item.slot === slot);
+            if (index >= 0) {
+              setPairingIndex(index);
+              setGameIndex(0);
+            }
+            setShowBracket(false);
+          }} />
+        </div>
+      ) : null}
+
+      {showBracket ? null : pairing ? (
         <div className={styles.scoreboard} aria-label="Tỉ số cặp đấu">
           <span className={styles.team}>{pairing.red} <small>hạt giống {pairing.seeds[0]}</small></span>
           <span className={styles.score}>{score(pairing.points[0])} – {score(pairing.points[1])}</span>
@@ -190,7 +207,7 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
         <p className={styles.hint} role="status">Đang tải…</p>
       )}
 
-      {pairing ? (
+      {pairing && !showBracket ? (
         <div className={styles.body}>
           <div className={styles.boardArea}>
             {game && teams ? (
@@ -236,7 +253,7 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
       ) : null}
 
       <footer className={styles.keys}>
-        Space phát/dừng · ←/→ từng nước · Home/End đầu/cuối · +/− tốc độ ({playback.speed}×) · N/P ván kế/trước · ]/[ cặp kế/trước · R tải lại
+        Space phát/dừng · ←/→ từng nước · Home/End đầu/cuối · +/− tốc độ ({playback.speed}×) · N/P ván kế/trước · ]/[ cặp kế/trước · B nhánh đấu · R tải lại
       </footer>
     </section>
   );

@@ -1,0 +1,376 @@
+/* Knockout tree and qualifying rounds (plan 2026-10-26 §3.3). Shared tokens only; no rules in CSS. */
+
+.empty {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-text-sm);
+}
+
+/* ---------- knockout tree ---------- */
+
+.treeScroll {
+  overflow-x: auto;
+  padding-bottom: var(--ui-space-2);
+}
+
+.tree {
+  --match-w: 220px;
+  --gap: var(--ui-space-8);
+  --line: var(--ui-line-strong);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--match-w);
+  column-gap: var(--gap);
+  min-width: max-content;
+  padding-bottom: 128px;
+}
+
+/* The projector fills the stage: columns share its width instead of a fixed card width. */
+.tree[data-large] {
+  --gap: var(--ui-space-8);
+  grid-auto-columns: minmax(180px, 1fr);
+  min-width: 0;
+  font-size: var(--ui-text-lg);
+}
+
+.round {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--ui-space-3);
+}
+
+.roundTitle {
+  margin: 0;
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+
+.slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Equal-height slots: the next round's slot sits exactly between the two it joins. */
+.slot {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  position: relative;
+  padding: var(--ui-space-2) 0;
+  min-height: 92px;
+}
+
+.tree[data-large] .slot {
+  min-height: 116px;
+}
+
+/* Lines: a stub out of every match but the last round's, a stub into every match but the first round's, and the
+   vertical join of each pair. */
+.round:not([data-last]) .slot::after {
+  content: "";
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: calc(var(--gap) / 2);
+  border-top: 2px solid var(--line);
+}
+
+.round:not([data-last]) .slot:nth-child(odd)::before,
+.round:not([data-last]) .slot:nth-child(even)::before {
+  content: "";
+  position: absolute;
+  left: calc(100% + var(--gap) / 2);
+  height: 50%;
+  border-left: 2px solid var(--line);
+}
+
+.round:not([data-last]) .slot:nth-child(odd)::before {
+  top: 50%;
+}
+
+.round:not([data-last]) .slot:nth-child(even)::before {
+  top: 0;
+}
+
+.round + .round .slot:not([data-extra]) .match::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  width: calc(var(--gap) / 2);
+  border-top: 2px solid var(--line);
+}
+
+/* The final fills the column so it lines up with the semi-finals; the third-place match hangs below the column, in the
+   room the tree keeps at its bottom. */
+.round[data-last] .slot[data-extra] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  min-height: 0;
+}
+
+.match {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--ui-space-2);
+  border: 2px solid var(--ui-glass-border-strong);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-1);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  box-shadow: var(--ui-shadow-panel);
+}
+
+button.match {
+  cursor: pointer;
+  transition: border-color var(--ui-motion-fast) var(--ui-ease-standard), transform var(--ui-motion-fast) var(--ui-ease-standard);
+}
+
+button.match:hover {
+  border-color: var(--ui-uet-blue);
+  transform: translateY(-1px);
+}
+
+button.match:focus-visible {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+
+button.match[aria-pressed="true"] {
+  border-color: var(--ui-uet-blue);
+  background: var(--ui-surface-2);
+}
+
+.match[data-empty] {
+  border-style: dashed;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ui-text-subtle);
+}
+
+.slotTag {
+  font-size: var(--ui-text-xs);
+  color: var(--ui-text-muted);
+}
+
+.side {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 2px var(--ui-space-1);
+  border-radius: calc(var(--ui-radius-control) / 2);
+}
+
+.side[data-won] {
+  background: color-mix(in srgb, var(--ui-uet-blue) 16%, transparent);
+  font-weight: 700;
+}
+
+.side[data-lost] {
+  color: var(--ui-text-muted);
+}
+
+.seed {
+  min-width: 1.6em;
+  text-align: center;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-xs);
+  color: var(--ui-text-muted);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.points {
+  font-family: var(--ui-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Narrow screens: rounds one under another, no connectors. */
+@media (max-width: 720px) {
+  .tree,
+  .tree[data-large] {
+    display: grid;
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    row-gap: var(--ui-space-5);
+    min-width: 0;
+  }
+
+  .slot,
+  .tree[data-large] .slot {
+    flex: none;
+    min-height: 0;
+  }
+
+  .round .slot::before,
+  .round .slot::after,
+  .round + .round .slot .match::before {
+    display: none;
+  }
+
+  .tree,
+  .tree[data-large] {
+    padding-bottom: 0;
+  }
+
+  .round[data-last] .slot[data-extra] {
+    position: static;
+  }
+}
+
+/* ---------- qualifying rounds ---------- */
+
+.rounds {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+
+.roundTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.roundTab {
+  min-height: var(--ui-control-height);
+  padding: 0 var(--ui-space-3);
+  border: 2px solid var(--ui-glass-border);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-1);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  cursor: pointer;
+}
+
+.roundTab[aria-pressed="true"] {
+  border-color: var(--ui-uet-blue);
+  background: var(--ui-uet-blue);
+  color: var(--ui-uet-on-blue);
+}
+
+.roundTab:focus-visible,
+.pairingHead:focus-visible {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+
+.roundBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+}
+
+.filter {
+  display: grid;
+  gap: var(--ui-space-1);
+  font-size: var(--ui-text-sm);
+}
+
+.filter input {
+  min-height: var(--ui-control-height);
+  padding: 0 var(--ui-space-3);
+  border: 2px solid var(--ui-glass-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-0);
+  color: var(--ui-text);
+  font: inherit;
+}
+
+.pairings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: var(--ui-space-2);
+}
+
+.pairing {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2);
+  border: 2px solid var(--ui-glass-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-1);
+}
+
+.pairing[data-bye] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-style: dashed;
+}
+
+.pairingHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pairingHead .side:nth-of-type(2) {
+  text-align: right;
+}
+
+.pairingHead .side {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.scoreline {
+  font-family: var(--ui-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.progress {
+  font-size: var(--ui-text-xs);
+  color: var(--ui-text-muted);
+}
+
+.games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ui-space-1);
+  font-size: var(--ui-text-sm);
+}
+
+.games li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+}

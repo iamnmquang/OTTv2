@@ -8,7 +8,7 @@ import { SubmissionsPanel } from "./SubmissionsPanel";
 const NOW = Date.UTC(2026, 11, 1, 3, 0);
 const event = {
   id: "ev", name: "Cup", mode: "demo", phase: "practice", registrationOpen: true, registrationOpensAt: 0, registrationClosesAt: NOW * 2,
-  practiceOpensAt: NOW - 1000, codeFreezeAt: NOW + 86_400_000, finalsAt: null,
+  practiceOpensAt: NOW - 1000, codeFreezeAt: NOW + 86_400_000, finalsAt: null, knockoutSize: 4,
   eligibility: { mssvDigits: 8, mssvPrefix: null, emailDomain: "vnu.edu.vn", allowExternalEmail: true }, turnstileSiteKey: null, serverTime: NOW,
 } as BotCupEvent;
 const team = {

@@ -18,6 +18,8 @@ export interface BotCupEvent {
   readonly practiceOpensAt: number | null;
   readonly codeFreezeAt: number | null;
   readonly finalsAt: number | null;
+  /** Teams in the knockout bracket (4, 8 or 16); fewer qualified teams play the largest bracket they fill. */
+  readonly knockoutSize: 4 | 8 | 16;
   readonly eligibility: {
     readonly mssvDigits: number;
     readonly mssvPrefix: string | null;
@@ -214,11 +216,42 @@ export interface KnockoutPairing {
   readonly games: readonly KnockoutGame[];
 }
 
+/** A qualifying pairing (round robin or Swiss); a bye has no opponent, points or games. */
+export interface QualifyingPairing {
+  readonly red: string | null;
+  readonly blue: string | null;
+  readonly bye: string | null;
+  readonly points: readonly [number, number] | null;
+  readonly played: number;
+  readonly total: number;
+  readonly games: readonly KnockoutGame[];
+}
+
+export interface QualifyingRound {
+  readonly round: number;
+  /** Swiss plays one map a round; round robin plays every map, so null. */
+  readonly mapId: string | null;
+  readonly pairings: readonly QualifyingPairing[];
+}
+
+export type BracketRoundName = "R16" | "QF" | "SF" | "F";
+
+/** The knockout tree with every slot, drawn before it is played: `pairing` stays null until that pairing exists. */
+export interface BracketView {
+  readonly size: 0 | 4 | 8 | 16;
+  readonly rounds: ReadonlyArray<{
+    readonly name: BracketRoundName;
+    readonly slots: ReadonlyArray<{ readonly slot: string; readonly pairing: KnockoutPairing | null }>;
+  }>;
+}
+
 export interface TournamentView {
   readonly phase: TournamentPhase;
   readonly documents: ReadonlyArray<{ readonly stage: ResultStage; readonly sha256: string; readonly publishedAt: number }>;
   readonly standings: { readonly format: "round_robin" | "swiss" | null; readonly rows: readonly StandingRow[] };
+  readonly rounds: readonly QualifyingRound[];
   readonly knockout: readonly KnockoutPairing[];
+  readonly bracket: BracketView;
 }
 
 export interface Appeal {

@@ -11,7 +11,7 @@ function fakeBotCupGateway() {
   return {
     getEvent: vi.fn().mockResolvedValue({
       id: "ev", name: "OTT Bot Cup Thử", mode: "demo", phase: "registration", registrationOpen: true,
-      registrationOpensAt: NOW - 1000, registrationClosesAt: NOW + 86_400_000, practiceOpensAt: null, codeFreezeAt: null, finalsAt: null,
+      registrationOpensAt: NOW - 1000, registrationClosesAt: NOW + 86_400_000, practiceOpensAt: null, codeFreezeAt: null, finalsAt: null, knockoutSize: 4,
       eligibility: { mssvDigits: 8, mssvPrefix: null, emailDomain: "vnu.edu.vn", allowExternalEmail: true },
       turnstileSiteKey: null, serverTime: NOW,
     }),
@@ -64,6 +64,20 @@ describe("App Bot Cup route", () => {
     await user.click(screen.getByRole("button", { name: "Thoát" }));
     await waitFor(() => expect(new URLSearchParams(window.location.search).has("view")).toBe(false));
     expect(new URLSearchParams(window.location.search).has("screen")).toBe(false);
+  });
+
+  it("opens the public bracket from ?view=bot-cup&screen=bracket", async () => {
+    window.history.replaceState(null, "", "/?view=bot-cup&screen=bracket");
+    const gateway = fakeBotCupGateway();
+    gateway.getTournament = vi.fn().mockResolvedValue({
+      phase: "qualifying", documents: [], standings: { format: null, rows: [] }, rounds: [], knockout: [],
+      bracket: { size: 4, rounds: [{ name: "SF", slots: [{ slot: "SF1", pairing: null }, { slot: "SF2", pairing: null }] }, { name: "F", slots: [{ slot: "F", pairing: null }, { slot: "3RD", pairing: null }] }] },
+    });
+    render(<App initialScenario="lobby-default" botCupEnabled botCupGateway={gateway} />);
+
+    expect(await screen.findByRole("list", { name: "Nhánh loại trực tiếp 4 đội" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kết quả" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Nhánh đấu" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("shows no banner when the Bot Cup is off", async () => {

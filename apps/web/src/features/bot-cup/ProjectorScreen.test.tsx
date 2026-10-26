@@ -15,9 +15,14 @@ function pairing(slot: string, red: string, blue: string, round = 1): KnockoutPa
   return { round, slot, red, blue, seeds: [1, 4], points: [3, 2], tiebreaks: 0, winner: null, decidedBySeed: false, games: [game(`${slot}-0`, 0, "a"), game(`${slot}-1`, 1, "b"), game(`${slot}-2`, 2, "a", "queued")] };
 }
 
+const semiFinals = [pairing("SF1", "Đội An", "Đội Dũng"), pairing("SF2", "Đội Bình", "Đội Chi")];
 const view: TournamentView = {
   phase: "knockout", documents: [], standings: { format: "round_robin", rows: [] },
-  knockout: [pairing("SF1", "Đội An", "Đội Dũng"), pairing("SF2", "Đội Bình", "Đội Chi")],
+  rounds: [], bracket: { size: 4, rounds: [
+    { name: "SF", slots: semiFinals.map((item) => ({ slot: item.slot, pairing: item })) },
+    { name: "F", slots: [{ slot: "F", pairing: null }, { slot: "3RD", pairing: null }] },
+  ] },
+  knockout: semiFinals,
 };
 
 function gatewayWith(overrides: Record<string, unknown> = {}) {
@@ -64,6 +69,15 @@ describe("ProjectorScreen", () => {
     await act(async () => { fireEvent.keyDown(window, { key: "]" }); });
     expect(await screen.findByRole("heading", { name: "Bán kết 2" })).toBeInTheDocument();
     expect(gateway.getMatchReplay).toHaveBeenLastCalledWith("SF2-0");
+
+    // B shows the whole bracket; choosing a pairing on it puts that pairing on screen.
+    await act(async () => { fireEvent.keyDown(window, { key: "b" }); });
+    const tree = screen.getByRole("list", { name: "Nhánh loại trực tiếp 4 đội" });
+    expect(screen.queryByLabelText("Tỉ số cặp đấu")).not.toBeInTheDocument();
+    await act(async () => { fireEvent.click(within(tree).getByRole("button", { name: /^Bán kết 1: Đội An/ })); });
+    expect(await screen.findByRole("heading", { name: "Bán kết 1" })).toBeInTheDocument();
+    expect(gateway.getMatchReplay).toHaveBeenLastCalledWith("SF1-0");
+    await act(async () => { fireEvent.keyDown(window, { key: "]" }); });
 
     // A game that has not been played shows no board.
     await act(async () => { fireEvent.keyDown(window, { key: "n" }); fireEvent.keyDown(window, { key: "n" }); });

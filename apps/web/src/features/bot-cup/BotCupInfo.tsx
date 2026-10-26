@@ -25,7 +25,6 @@ export function BotCupAbout({ event }: { readonly event: BotCupEvent }) {
 }
 
 export function BotCupRules({ event }: { readonly event: BotCupEvent }) {
-  const demo = event.mode === "demo";
   return (
     <section className={styles.prose} aria-labelledby="bot-cup-rules">
       <h2 id="bot-cup-rules">Thể lệ</h2>
@@ -35,8 +34,8 @@ export function BotCupRules({ event }: { readonly event: BotCupEvent }) {
         <li><strong>Luyện tập:</strong> nộp bài (tối đa 10 lần/ngày), đấu thử với bot của Ban tổ chức.</li>
         <li><strong>Khóa code:</strong> Bản thi đấu của đội được niêm phong. <strong>Không được nộp lại</strong>, kể cả trước chung kết.</li>
         <li><strong>Vòng kiểm tra:</strong> mỗi bot đấu 6 ván với bot "Dễ"; cần ít nhất 4 điểm để vào vòng loại.</li>
-        <li><strong>Vòng loại:</strong> {demo ? "vòng tròn, mỗi cặp đấu 6 ván (3 bản đồ × 2 màu)." : "hệ Thụy Sĩ 7–10 vòng, mỗi vòng một cặp đấu 2 ván đổi màu."}</li>
-        <li><strong>Chung kết:</strong> {demo ? "Top 4" : "Top 16"} thi loại trực tiếp, mỗi cặp 6 ván. Top 4 phỏng vấn code với Ban tổ chức.</li>
+        <li><strong>Vòng loại:</strong> tối đa 10 đội thì đấu vòng tròn, mỗi cặp 6 ván (3 bản đồ × 2 màu); đông hơn thì hệ Thụy Sĩ 7–10 vòng, mỗi vòng một cặp đấu 2 ván đổi màu.</li>
+        <li><strong>Chung kết:</strong> Top {event.knockoutSize} thi loại trực tiếp, mỗi cặp 6 ván (ít đội hơn thì nhánh nhỏ lại). 4 hạt giống đầu phỏng vấn code với Ban tổ chức trước khi vào nhánh.</li>
       </ol>
       <h3>Một ván</h3>
       <ul>
