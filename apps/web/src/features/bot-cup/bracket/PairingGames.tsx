@@ -1,14 +1,16 @@
+import type { ReactNode } from "react";
 import { Button } from "../../../shared/ui/Button";
 import type { KnockoutGame } from "../BotCupApiGateway";
 import { gameLine } from "./bracketFormat";
 import styles from "./bracket.module.css";
 
-/** The games of one pairing, each with its replay once it is finished. */
-export function PairingGames({ red, blue, games, onOpenReplay }: {
+/** The games of one pairing, each with its replay once it is finished; `actions` adds controls (the organisers' site). */
+export function PairingGames({ red, blue, games, onOpenReplay, actions }: {
   readonly red: string;
   readonly blue: string;
   readonly games: readonly KnockoutGame[];
   readonly onOpenReplay?: (matchId: string) => void;
+  readonly actions?: (game: KnockoutGame) => ReactNode;
 }) {
   if (games.length === 0) return null;
   return (
@@ -19,6 +21,7 @@ export function PairingGames({ red, blue, games, onOpenReplay }: {
           {onOpenReplay && game.status === "finished" ? (
             <Button variant="secondary" onClick={() => onOpenReplay(game.id)}>Xem replay</Button>
           ) : null}
+          {actions ? actions(game) : null}
         </li>
       ))}
     </ul>

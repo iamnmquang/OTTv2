@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { QualifyingRound } from "../BotCupApiGateway";
+import { useMemo, useState, type ReactNode } from "react";
+import type { KnockoutGame, QualifyingRound } from "../BotCupApiGateway";
 import { MAP_LABELS } from "../matchFormat";
 import { PairingGames } from "./PairingGames";
 import { score } from "./bracketFormat";
@@ -11,10 +11,11 @@ const key = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").repl
  * Qualifying pairings round by round (plan 2026-10-26 §3.3): one round at a time, the latest by default, a filter by team
  * name, and each pairing opening its games and replays.
  */
-export function SwissRounds({ rounds, format, onOpenReplay }: {
+export function SwissRounds({ rounds, format, onOpenReplay, gameActions }: {
   readonly rounds: readonly QualifyingRound[];
   readonly format: "round_robin" | "swiss";
   readonly onOpenReplay?: (matchId: string) => void;
+  readonly gameActions?: (game: KnockoutGame) => ReactNode;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
   const [filter, setFilter] = useState("");
@@ -69,7 +70,7 @@ export function SwissRounds({ rounds, format, onOpenReplay }: {
                   <span className={styles.side} data-won={(done && b > a) || undefined}><span className={styles.name}>{pairing.blue}</span></span>
                   <span className={styles.progress}>{done ? "xong" : `${pairing.played}/${pairing.total}`}</span>
                 </button>
-                {open === id ? <PairingGames red={pairing.red ?? ""} blue={pairing.blue ?? ""} games={pairing.games} onOpenReplay={onOpenReplay} /> : null}
+                {open === id ? <PairingGames red={pairing.red ?? ""} blue={pairing.blue ?? ""} games={pairing.games} onOpenReplay={onOpenReplay} actions={gameActions} /> : null}
               </li>
             );
           })}

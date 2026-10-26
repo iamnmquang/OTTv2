@@ -4,7 +4,8 @@
  * neither. Disqualifying a team and changing a game result wait for a second admin.
  *
  * Dependencies are injected so the Worker and Node tests run the same code:
- *   db, now, config { eventId, authMode: "access"|"password"|"demo", access?: { teamDomain, aud }, allowedOrigins: string[] },
+ *   db, now, config { eventId, authMode: "access"|"password"|"demo", access?: { teamDomain, aud }, allowedOrigins: string[],
+ *   webOrigin?: the player site, for links to the public bracket },
  *   fetchImpl (Access certs)
  */
 import {
@@ -588,7 +589,7 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
   // ---------- routing ----------
 
   const routes = [
-    ["GET", /^\/me$/, (request, admin) => json({ email: admin.email, role: admin.role, authMode: config.authMode, fourEyes: FOUR_EYES_ACTIONS })],
+    ["GET", /^\/me$/, (request, admin) => json({ email: admin.email, role: admin.role, authMode: config.authMode, fourEyes: FOUR_EYES_ACTIONS, publicWebOrigin: config.webOrigin ?? null })],
     ["GET", /^\/overview$/, () => overview()],
     ["GET", /^\/teams$/, () => listTeams()],
     ["GET", /^\/teams\/([\w-]+)$/, (request, admin, m) => getTeam(m[1])],

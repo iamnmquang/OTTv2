@@ -31,10 +31,13 @@ jobs:
       - run: npm ci
       # server.test.js checks the real build, so build before unit tests.
       - run: npm run build:web
+      - run: npm run build:admin
       - run: npm run typecheck:web
+      - run: npm run typecheck:admin
       - run: npm run typecheck:worker
       - run: npm run test:unit
       - run: npm run test:web
+      - run: npm run test:admin
 
   integration:
     name: Worker integration (wrangler dev --local)
