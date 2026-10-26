@@ -4,7 +4,8 @@
  *
  * Bindings: DB (D1), ASSETS (static assets).
  * Vars:     BOT_CUP_EVENT_ID, ADMIN_AUTH_MODE ("access" default | "password" | "demo": one-click sign-in, never production), ACCESS_TEAM_DOMAIN, ACCESS_AUD,
- *           ADMIN_ALLOWED_ORIGINS (comma-separated; defaults to the request's own origin).
+ *           ADMIN_ALLOWED_ORIGINS (comma-separated; defaults to the request's own origin), BOT_CUP_WEB_ORIGIN (player site,
+ *           for the "public bracket" links).
  */
 import { createAdminApi } from "./app.mjs";
 
@@ -40,7 +41,7 @@ export default {
       const api = createAdminApi({
         db: env.DB,
         now: () => Date.now(),
-        config: { eventId: env.BOT_CUP_EVENT_ID, authMode, access: { teamDomain: env.ACCESS_TEAM_DOMAIN, aud: env.ACCESS_AUD }, allowedOrigins }
+        config: { eventId: env.BOT_CUP_EVENT_ID, authMode, access: { teamDomain: env.ACCESS_TEAM_DOMAIN, aud: env.ACCESS_AUD }, allowedOrigins, webOrigin: env.BOT_CUP_WEB_ORIGIN || null }
       });
       return withHeaders(await api.fetch(request));
     }

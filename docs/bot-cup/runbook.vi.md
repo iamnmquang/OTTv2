@@ -78,5 +78,6 @@ không chạy: runner giả lập đánh bằng AI trong game theo "sức mạnh
 3. Runner giả lập (một lần: `node scripts/bot-cup/runner-token.mjs showcase-sim --env staging`):
    `BOT_CUP_RUNNER_URL=https://ottv2-bot-cup-api-showcase.opticsquang.workers.dev BOT_CUP_RUNNER_TOKEN_FILE=var/bot-cup/runner-token-showcase-sim.txt BOT_CUP_RUNNER_SIMULATE=true BOT_CUP_RUNNER_SLOTS=8 npm run bot-cup:runner`.
    Runner từ chối chạy giả lập với URL khác Worker showcase hoặc localhost, và từ chối mọi bài không có dòng sức mạnh.
-4. Điều phối: bấm tay trên https://ottv2-bot-cup-admin-showcase.opticsquang.workers.dev (đăng nhập demo một bấm), hoặc để
-   `npm run bot-cup:showcase -- drive` tự bấm hết các bước (4 hạt giống đầu được cho đạt phỏng vấn).
+4. Điều phối: bấm tay trên https://ottv2-bot-cup-admin-showcase.opticsquang.workers.dev (đăng nhập demo một bấm), bấm
+   *Tự chạy tới hết* ở tab Điều phối giải (chỉ có ở chế độ demo), hoặc chạy `npm run bot-cup:showcase -- drive`. Hai cách tự
+   động cùng một thứ tự bước, cho 4 hạt giống đầu đạt phỏng vấn. Tab *Nhánh đấu* có link sang trang công khai và màn trình chiếu.

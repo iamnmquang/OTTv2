@@ -1,6 +1,6 @@
 # Bot Cup — trang BTC mới, nhánh đấu công khai và demo 100 đội
 
-Ngày: 2026-10-26 · Trạng thái: **A, B, C, D xong** (nhánh `feat/bot-cup-showcase-a`), E, F chưa làm · Kế hoạch gốc: [2026-10-23-uet-k71-bot-cup.md](2026-10-23-uet-k71-bot-cup.md)
+Ngày: 2026-10-26 · Trạng thái: **A–E xong** (A–D: PR #36 đã merge; E: nhánh `feat/bot-cup-admin-react`), F chưa làm · Kế hoạch gốc: [2026-10-23-uet-k71-bot-cup.md](2026-10-23-uet-k71-bot-cup.md)
 
 ## 1. Mục tiêu
 
@@ -89,14 +89,14 @@ Luật cờ (`rules.js`), thể thức (sơ loại → vòng tròn/Swiss → ph�
 | **B. Dữ liệu nhánh đấu** ✅ | §3.2: `qualifyingRounds`, `bracketView` (`rounds`, `bracket` trong admin/public view), kiểu gateway | Test API: public view không chứa MSSV/team id; cây 8 vẽ trống trước loại trực tiếp. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-b.md` |
 | **C. Trang công khai** ✅ | §3.3: `KnockoutTree`, `SwissRounds`, ba mục kết quả, tự làm mới 15 s, `screen=bracket`, projector phím B, `knockoutSize` ở trang Thể lệ | 822 test web; xem bằng Playwright với dữ liệu 100 đội thật. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-c.md` |
 | **D. Demo 100 đội** ✅ | §3.5: env `showcase`, `showcase.mjs seed/deploy/drive` (không có reset: bài nộp không xoá được, mỗi lần là sự kiện mới), runner giả lập | Staging `showcase-202610260422`: 1.136 ván, 11 phút, 0 lỗi, nhánh 16 chạy hết. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-d.md` |
-| **E. Admin React** | §3.4: khung, Tổng quan, Điều phối (xem trước), Nhánh đấu, rồi chuyển các tab còn lại | Test API như cũ; kiểm tra tay bằng bản demo 100 đội; đối chiếu đủ chức năng với `admin.js` cũ trước khi xoá |
+| **E. Admin React** ✅ | §3.4: đủ 11 màn + Nhánh đấu, hộp thoại xem trước, tự chạy (demo), xoá trang cũ, tăng tốc view | 6 test admin; Playwright trên showcase; tự chạy 20 đội trong trình duyệt 226 s. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-e.md` |
 | **F. Hoàn thiện** | Runbook (`docs/bot-cup/runbook.vi.md`) thêm mục demo; deploy staging/showcase; cập nhật `bot-cup-progress.md` và evidence `docs/evidence/2026-10-xx-bot-cup-showcase.md` | Checklist demo end-to-end |
 
 Thứ tự: A → B → D chạy được sớm trên admin cũ để có dữ liệu thật, rồi C, E, F. Có thể làm C song song với D.
 
-## 5. Câu hỏi còn mở (đã đặt mặc định, đổi được)
+## 5. Quyết định (đã chốt)
 
-1. **Admin React đặt ở đâu**: mặc định `apps/bot-cup-admin/web/` và import theme/UI từ `apps/web` bằng alias. Cách khác: tách `packages/ui` dùng chung (sạch hơn nhưng nhiều việc hơn).
-2. **Sự kiện demo**: mặc định `showcase-100` với hai Worker env mới. Cách khác: dùng lại env `rehearsal` và đổi event id (ít Worker hơn nhưng mất bản diễn tập 8 đội).
-3. **Tự động điều phối cho demo** (tuỳ chọn, chưa đưa vào giai đoạn): nút "Tự chạy tới hết" bấm bước kế tiếp khi đủ điều kiện, lý do ghi "demo tự động". Có cần không?
-4. **Trang BTC cũ (`admin.js`)**: mặc định xoá sau khi bản React đủ chức năng ở giai đoạn E. Hay giữ song song một thời gian?
+1. **Admin React đặt ở đâu**: `apps/bot-cup-admin/web/`, import theme/UI/bracket từ `apps/web` bằng alias `@web` (mặc định).
+2. **Sự kiện demo**: Worker env `showcase`; mỗi lần `seed` là một sự kiện `showcase-<giờ>` mới (bài nộp không xoá được).
+3. **Tự động điều phối**: có, chỉ ở `ADMIN_AUTH_MODE=demo` và tài khoản admin (chủ dự án chốt 2026-10-26).
+4. **Trang BTC cũ**: xoá trong cùng PR khi bản React đủ chức năng (chủ dự án chốt 2026-10-26).

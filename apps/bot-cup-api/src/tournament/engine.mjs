@@ -52,7 +52,30 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
 
   const setPhase = (phase) => store.statement("UPDATE events SET phase = ? WHERE id = ?", phase, eventId);
 
-  async function entrants() {
+  // A view (adminView, publicView) asks for the same rows many times: entrants, every Swiss game, the table. Inside one
+  // view each read runs once; outside a view (the plan* steps, which write) nothing is cached.
+  let viewCache = null;
+  const cachedRead = (key, read) => {
+    if (!viewCache) return read();
+    if (!viewCache.has(key)) viewCache.set(key, read());
+    return viewCache.get(key);
+  };
+  async function withViewCache(build) {
+    const outer = viewCache;
+    viewCache = outer ?? new Map();
+    try {
+      return await build();
+    } finally {
+      if (!outer) viewCache = null;
+    }
+  }
+  const entrants = () => cachedRead("entrants", readEntrants);
+  const stageGames = (stage) => cachedRead(`games:${stage}`, () => readStageGames(stage));
+  const scoredPairings = (stage) => cachedRead(`pairings:${stage}`, () => readScoredPairings(stage));
+  const qualifyingFormat = () => cachedRead("format", readQualifyingFormat);
+  const qualifyingStandings = () => cachedRead("standings", readQualifyingStandings);
+
+  async function readEntrants() {
     return all(
       `SELECT e.*, t.display_name, t.handle, t.disqualified_at, s.language, s.seq
        FROM entrants e JOIN teams t ON t.id = e.team_id JOIN submissions s ON s.id = e.submission_id
@@ -74,7 +97,7 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
 
   // ---------- games ----------
 
-  async function stageGames(stage) {
+  async function readStageGames(stage) {
     return all(
       `SELECT id, stage, round, pairing_id, game_index, map_id, a_submission_id, b_submission_id, a_house, b_house, status, outcome, winner,
               reason, plies, replay_sha256
@@ -88,7 +111,7 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
   }
 
   /** Every game of every pairing of `stage`, scored for the pairing's two teams. */
-  async function scoredPairings(stage) {
+  async function readScoredPairings(stage) {
     const [pairings, games, sealed] = await Promise.all([
       all("SELECT * FROM pairings WHERE event_id = ? AND stage = ? ORDER BY round, slot, created_at", eventId, stage),
       stageGames(stage),
@@ -109,13 +132,13 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
     return { round: pairing.round, a: pairing.team_a, b: pairing.team_b, pointsA: pairing.score.a, pointsB: pairing.score.b, winsA: pairing.score.winsA, winsB: pairing.score.winsB, games: pairing.score.played };
   }
 
-  async function qualifyingFormat() {
+  async function readQualifyingFormat() {
     const row = await first("SELECT stage FROM pairings WHERE event_id = ? AND stage IN ('round_robin', 'swiss') LIMIT 1", eventId);
     return row?.stage ?? null;
   }
 
   /** Live qualifying table; disqualified teams are left out of the ranking but their games still count for opponents. */
-  async function qualifyingStandings() {
+  async function readQualifyingStandings() {
     const format = await qualifyingFormat();
     if (!format) return { format: null, rows: [] };
     const sealed = (await entrants()).filter((entrant) => entrant.gate_status === "qualified");
@@ -471,7 +494,8 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
     const ev = await event();
     const knockout = await knockoutView();
     const list = await entrants();
-    const gate = ev.phase === "frozen" ? [] : await gateResults();
+    // Gate progress is only shown while the gate runs; afterwards its 6 games per team are in the published document.
+    const gate = ev.phase === "gate" ? await gateResults() : [];
     const docs = await all("SELECT stage, sha256, published_at FROM stage_results WHERE event_id = ? ORDER BY published_at", eventId);
     const appeals = await all(
       `SELECT a.*, t.display_name FROM appeals a JOIN teams t ON t.id = a.team_id WHERE a.event_id = ? ORDER BY a.status = 'open' DESC, a.created_at DESC`,
@@ -583,8 +607,8 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
     planKnockoutStart: finalized(planKnockoutStart),
     planKnockoutAdvance: finalized(planKnockoutAdvance),
     planFinishWithoutKnockout: finalized(planFinishWithoutKnockout),
-    adminView,
-    publicView,
+    adminView: () => withViewCache(adminView),
+    publicView: () => withViewCache(publicView),
     qualifyingStandings
   };
 }

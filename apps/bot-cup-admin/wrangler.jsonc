@@ -9,9 +9,12 @@
   "preview_urls": false,
   "observability": { "enabled": true },
   // run_worker_first: every response, static ones too, goes through the Worker and gets the security headers.
+  // ./public is the React build of web/ (git-ignored); `wrangler deploy` and `wrangler dev` build it first.
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  "build": { "command": "npm run build:admin" },
   "vars": {
     "BOT_CUP_EVENT_ID": "uet-k71-2026",
+    "BOT_CUP_WEB_ORIGIN": "https://ottv2-psi.vercel.app",
     "ADMIN_AUTH_MODE": "access"
     // ACCESS_TEAM_DOMAIN (https://<team>.cloudflareaccess.com) and ACCESS_AUD are set when the Access application exists.
   },
@@ -31,6 +34,7 @@
       "observability": { "enabled": true },
       "vars": {
         "BOT_CUP_EVENT_ID": "staging-demo",
+        "BOT_CUP_WEB_ORIGIN": "https://ottv2-staging.vercel.app",
         // Demo for now: one-click sign-in, no password. "password" (accounts from scripts/bot-cup/admin-user.mjs, with
         // TOTP) and "access" still work; switch back before a real event.
         "ADMIN_AUTH_MODE": "demo"
@@ -50,7 +54,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true },
-      "vars": { "BOT_CUP_EVENT_ID": "rehearsal-demo", "ADMIN_AUTH_MODE": "demo" },
+      "vars": { "BOT_CUP_EVENT_ID": "rehearsal-demo", "BOT_CUP_WEB_ORIGIN": "https://ottv2-staging.vercel.app", "ADMIN_AUTH_MODE": "demo" },
       "d1_databases": [
         {
           "binding": "DB",
@@ -66,7 +70,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true },
-      "vars": { "BOT_CUP_EVENT_ID": "showcase-unset", "ADMIN_AUTH_MODE": "demo" },
+      "vars": { "BOT_CUP_EVENT_ID": "showcase-unset", "BOT_CUP_WEB_ORIGIN": "https://ottv2-staging.vercel.app", "ADMIN_AUTH_MODE": "demo" },
       "d1_databases": [
         {
           "binding": "DB",

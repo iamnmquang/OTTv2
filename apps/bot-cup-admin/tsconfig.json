@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "module": "ESNext",
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["vitest/globals", "vite/client"],
+    "baseUrl": ".",
+    "paths": { "@web/*": ["../web/src/*"] }
+  },
+  "include": ["web/src", "../web/src/vite-env.d.ts"]
+}
