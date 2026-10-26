@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // Public site of the showcase event (src/index.mjs). Deployed with `npm run bot-cup:showcase -- deploy`; staging account
+  // only, never production. ./public is the web build (git-ignored), made by the build command below.
+  "name": "ottv2-bot-cup-showcase-web",
+  "main": "src/index.mjs",
+  "compatibility_date": "2025-09-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  // npm runs package scripts from the repository root, wherever wrangler is started.
+  "build": { "command": "npm run build:showcase-web" },
+  // /api/t goes to the API before assets are looked up; any other unknown path is the app (client-side routing).
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/t/*"], "not_found_handling": "single-page-application" },
+  "services": [{ "binding": "API", "service": "ottv2-bot-cup-api-showcase" }]
+}

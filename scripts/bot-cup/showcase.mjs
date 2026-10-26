@@ -4,7 +4,7 @@
  * (BOT_CUP_RUNNER_SIMULATE=true) through the normal runner API, every game replayed by the Worker before it counts.
  *
  *   node scripts/bot-cup/showcase.mjs seed [--teams 100] [--freeze-in 1] [--event showcase-<stamp>]
- *   node scripts/bot-cup/showcase.mjs deploy          both showcase Workers, pointed at the seeded event
+ *   node scripts/bot-cup/showcase.mjs deploy          the showcase API, public site and admin Workers, on the seeded event
  *   node scripts/bot-cup/showcase.mjs drive [--admin <origin>]   presses every organiser step until the event ends
  *
  * Submissions are append-only (a trigger refuses DELETE), so a showcase is never reset: each `seed` makes a new event id
@@ -150,6 +150,8 @@ async function deploy() {
   for (const app of ["bot-cup-api", "bot-cup-admin"]) {
     wrangler(["deploy", "--env", "showcase", "--config", `apps/${app}/wrangler.jsonc`, "--var", `BOT_CUP_EVENT_ID:${eventId}`]);
   }
+  // The public site has no event of its own: it forwards /api/t to the showcase API (service binding).
+  wrangler(["deploy", "--config", "apps/bot-cup-showcase-web/wrangler.jsonc"]);
 }
 
 

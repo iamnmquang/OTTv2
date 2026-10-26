@@ -1,6 +1,6 @@
 # Bot Cup — trang BTC mới, nhánh đấu công khai và demo 100 đội
 
-Ngày: 2026-10-26 · Trạng thái: **A–E xong** (A–D: PR #36 đã merge; E: nhánh `feat/bot-cup-admin-react`), F chưa làm · Kế hoạch gốc: [2026-10-23-uet-k71-bot-cup.md](2026-10-23-uet-k71-bot-cup.md)
+Ngày: 2026-10-26 · Trạng thái: **xong A–F** (A–D: PR #36, E: PR #37, F: nhánh `feat/bot-cup-showcase-web`) · Kế hoạch gốc: [2026-10-23-uet-k71-bot-cup.md](2026-10-23-uet-k71-bot-cup.md)
 
 ## 1. Mục tiêu
 
@@ -90,7 +90,7 @@ Luật cờ (`rules.js`), thể thức (sơ loại → vòng tròn/Swiss → ph�
 | **C. Trang công khai** ✅ | §3.3: `KnockoutTree`, `SwissRounds`, ba mục kết quả, tự làm mới 15 s, `screen=bracket`, projector phím B, `knockoutSize` ở trang Thể lệ | 822 test web; xem bằng Playwright với dữ liệu 100 đội thật. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-c.md` |
 | **D. Demo 100 đội** ✅ | §3.5: env `showcase`, `showcase.mjs seed/deploy/drive` (không có reset: bài nộp không xoá được, mỗi lần là sự kiện mới), runner giả lập | Staging `showcase-202610260422`: 1.136 ván, 11 phút, 0 lỗi, nhánh 16 chạy hết. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-d.md` |
 | **E. Admin React** ✅ | §3.4: đủ 11 màn + Nhánh đấu, hộp thoại xem trước, tự chạy (demo), xoá trang cũ, tăng tốc view | 6 test admin; Playwright trên showcase; tự chạy 20 đội trong trình duyệt 226 s. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-e.md` |
-| **F. Hoàn thiện** | Runbook (`docs/bot-cup/runbook.vi.md`) thêm mục demo; deploy staging/showcase; cập nhật `bot-cup-progress.md` và evidence `docs/evidence/2026-10-xx-bot-cup-showcase.md` | Checklist demo end-to-end |
+| **F. Hoàn thiện** ✅ | Deploy lại API + BTC staging/rehearsal; trang công khai showcase (`apps/bot-cup-showcase-web`, Worker + service binding); runbook §6, CLAUDE.md, `bot-cup-progress.md` | Kiểm tra trên Worker thật: nhánh đấu, replay chung kết, link từ BTC. Evidence: `docs/evidence/2026-10-26-bot-cup-showcase-f.md` |
 
 Thứ tự: A → B → D chạy được sớm trên admin cũ để có dữ liệu thật, rồi C, E, F. Có thể làm C song song với D.
 

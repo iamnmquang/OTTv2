@@ -83,8 +83,9 @@
       "observability": { "enabled": true },
       "vars": {
         "BOT_CUP_EVENT_ID": "showcase-unset",
-        "BOT_CUP_WEB_ORIGIN": "https://ottv2-staging.vercel.app",
-        "BOT_CUP_ALLOWED_ORIGINS": "https://ottv2-staging.vercel.app,http://localhost:5173",
+        // The showcase public site (apps/bot-cup-showcase-web) forwards /api/t here through a service binding.
+        "BOT_CUP_WEB_ORIGIN": "https://ottv2-bot-cup-showcase-web.opticsquang.workers.dev",
+        "BOT_CUP_ALLOWED_ORIGINS": "https://ottv2-bot-cup-showcase-web.opticsquang.workers.dev,http://localhost:5173",
         "BOT_CUP_EMAIL_MODE": "outbox",
         "TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
       },

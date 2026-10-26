@@ -20,6 +20,7 @@ tag, không merge `main`.
 | P7 | ✅ [D] (runner offline [T] chưa làm) | `feat/bot-cup-p3` (PR #32 đã merge) | `docs/evidence/2026-10-24-bot-cup-p7.md` |
 | P8 | ✅ | `feat/bot-cup-p8` (PR #33 đã merge) | `docs/evidence/2026-10-24-bot-cup-p8.md` |
 | P9 | 🟡 [D] một phần: diễn tập chưa chạy | `feat/bot-cup-p9` | `docs/evidence/2026-10-24-bot-cup-p9.md` |
+| Showcase A–F | ✅ nhánh 4/8/16, nhánh đấu công khai, demo 100 đội, trang BTC React | PR #36, #37, `feat/bot-cup-showcase-web` | `docs/evidence/2026-10-26-bot-cup-showcase-{a,b,c,d,e,f}.md` · plan `2026-10-26-bot-cup-admin-showcase.md` |
 
 ## Điểm dừng
 
@@ -27,6 +28,10 @@ tag, không merge `main`.
 Tiếp tục diễn tập: `npm run bot-cup:rehearsal -- seed --freeze-in 20` → runner nối `https://ottv2-bot-cup-api-rehearsal.opticsquang.workers.dev`
 → các bước ở `docs/bot-cup/runbook.vi.md` §2 (admin `btc-check` + `btc-check2` trên `https://ottv2-bot-cup-admin-rehearsal.opticsquang.workers.dev`)
 → trình chiếu: Vite với `OTT_BOT_CUP_API_ORIGIN=<rehearsal API>` rồi mở `?view=bot-cup&screen=projector`.
+
+2026-10-26: Kế hoạch showcase (`2026-10-26-bot-cup-admin-showcase.md`) xong A–F. Demo 100 đội đang chạy trên staging:
+BTC https://ottv2-bot-cup-admin-showcase.opticsquang.workers.dev (đăng nhập demo một bấm), người xem
+https://ottv2-bot-cup-showcase-web.opticsquang.workers.dev/?view=bot-cup&screen=bracket. Trình diễn lại: runbook §6.
 
 ## Ghi chú cho phiên sau
 
@@ -36,7 +41,8 @@ Tiếp tục diễn tập: `npm run bot-cup:rehearsal -- seed --freeze-in 20` �
 - Staging: D1 đã có migration 0001–0007; Worker có `BOT_CUP_RUNNER_IMAGE_ID`; token runner `var/bot-cup/runner-token-staging-main.txt`.
 - Chạy runner: `BOT_CUP_RUNNER_URL=… BOT_CUP_RUNNER_TOKEN_FILE=… ARENA_RUNNER_IMAGE_ID=sha256:8e3ea65c… npm run bot-cup:runner` (`BOT_CUP_RUNNER_ONCE=true` để tự dừng).
 - Máy có 12 container của dự án khác: không đụng tới. Khi đo benchmark không chạy test khác song song.
-- Admin staging: https://ottv2-bot-cup-admin-staging.opticsquang.workers.dev (password+TOTP). Tài khoản thử `btc-check@ottcup.test`
+- Admin staging/rehearsal/showcase đang ở `ADMIN_AUTH_MODE=demo` (đăng nhập một bấm, bản React). Trước giải thật đổi lại `password` hoặc `access`.
+- Admin staging: https://ottv2-bot-cup-admin-staging.opticsquang.workers.dev (trước 2026-10-26 là password+TOTP). Tài khoản thử `btc-check@ottcup.test`
   (file `var/bot-cup/admin-btc-check@ottcup.test.txt`); tài khoản chủ dự án đã tạo nhưng KHÔNG dùng để thao tác.
 - Local admin: `npm run bot-cup:admin:dev` (8790), tạo admin: `node scripts/bot-cup/admin-user.mjs <email> --env test --local`.
 - Sự kiện staging chưa đặt `code_freeze_at` ⇒ bước khóa code bị từ chối (cố ý). Diễn tập P9 cần sự kiện/giờ khóa riêng: đừng
