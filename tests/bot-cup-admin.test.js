@@ -69,6 +69,23 @@ async function setup({ authMode = "access" } = {}) {
 }
 
 describe("bot-cup admin: who gets in", () => {
+  it("signs in with one click in demo mode, seeding two admins when there are none", async () => {
+    const t = await setup({ authMode: "demo" });
+    assert.deepEqual((await t.admin("GET", "/login")).body.admins.map((a) => a.email), ["btc1@demo.local", "btc2@demo.local"]);
+    const ok = await t.admin("POST", "/login", { json: { email: "btc2@demo.local" } });
+    assert.equal(ok.status, 200);
+    const cookie = ok.headers.get("set-cookie").split(";")[0];
+    const me = await t.admin("GET", "/me", { cookie });
+    assert.deepEqual([me.body.email, me.body.authMode], ["btc2@demo.local", "demo"]);
+    assert.deepEqual(t.auditRows().map((row) => [row.action, row.actor_email]), [["admin.login", "btc2@demo.local"]]);
+    assert.equal((await t.admin("POST", "/login", { json: {} })).body.email, "btc1@demo.local");
+    assert.equal((await t.admin("POST", "/login", { json: { email: "nobody@x.test" } })).status, 401);
+
+    const strict = await setup({ authMode: "password" });
+    assert.deepEqual((await strict.admin("GET", "/login")).body, { authMode: "password" });
+    assert.equal((await strict.admin("POST", "/login", { json: { email: "btc1@demo.local" } })).status, 401);
+  });
+
   it("requires a valid Access JWT for an enabled admin", async () => {
     const t = await setup();
     t.addAdmin("boss@uet.test");

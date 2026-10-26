@@ -34,9 +34,14 @@ function requireWriter(admin) {
 export function tournamentRoutes({ store, now, eventId, audited, random }) {
   const engine = createTournament({ store, now, eventId, random });
 
+  /** `{ dryRun: true }` returns what the step would do (same checks, same summary) without writing or auditing. */
   async function step(request, admin, name) {
     requireWriter(admin);
     const body = await readJson(request);
+    if (body.dryRun === true) {
+      const preview = await engine[STEPS[name]]();
+      return json({ ok: true, dryRun: true, step: name, ...preview.summary });
+    }
     const reason = reasonOf(body);
     const plan = await engine[STEPS[name]]();
     await audited(admin, { action: `tournament.${name}`, target: `event:${eventId}`, reason, payload: plan.summary }, plan.statements);
@@ -49,6 +54,15 @@ export function tournamentRoutes({ store, now, eventId, audited, random }) {
     const reason = reasonOf(body);
     const plan = await engine.planInterview(String(body.teamId ?? ""), body.result);
     await audited(admin, { action: "tournament.interview", target: `team:${body.teamId}`, reason, payload: plan.summary }, plan.statements);
+    return json({ ok: true, ...plan.summary });
+  }
+
+  async function interviews(request, admin) {
+    requireWriter(admin);
+    const body = await readJson(request);
+    const reason = reasonOf(body);
+    const plan = await engine.planInterviews(body.teamIds, body.result);
+    await audited(admin, { action: "tournament.interview_bulk", target: `event:${eventId}`, reason, payload: plan.summary }, plan.statements);
     return json({ ok: true, ...plan.summary });
   }
 
@@ -75,6 +89,7 @@ export function tournamentRoutes({ store, now, eventId, audited, random }) {
     }],
     ["POST", /^\/tournament\/(freeze|gate-start|gate-close|qualifying-start|swiss-next|qualifying-close|knockout-start|knockout-advance|finish)$/, (request, admin, match) => step(request, admin, match[1])],
     ["POST", /^\/tournament\/interview$/, (request, admin) => interview(request, admin)],
+    ["POST", /^\/tournament\/interviews$/, (request, admin) => interviews(request, admin)],
     ["POST", /^\/tournament\/appeals\/([\w-]+)\/answer$/, (request, admin, match) => answerAppeal(request, admin, match[1])]
   ];
 }

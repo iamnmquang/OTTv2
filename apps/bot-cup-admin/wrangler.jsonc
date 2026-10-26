@@ -31,9 +31,9 @@
       "observability": { "enabled": true },
       "vars": {
         "BOT_CUP_EVENT_ID": "staging-demo",
-        // Cloudflare Access is not set up on the account yet: password + TOTP for admins created with
-        // scripts/bot-cup/admin-user.mjs. Switch to "access" once the Access application exists.
-        "ADMIN_AUTH_MODE": "password"
+        // Demo for now: one-click sign-in, no password. "password" (accounts from scripts/bot-cup/admin-user.mjs, with
+        // TOTP) and "access" still work; switch back before a real event.
+        "ADMIN_AUTH_MODE": "demo"
       },
       "d1_databases": [
         {
@@ -50,7 +50,23 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true },
-      "vars": { "BOT_CUP_EVENT_ID": "rehearsal-demo", "ADMIN_AUTH_MODE": "password" },
+      "vars": { "BOT_CUP_EVENT_ID": "rehearsal-demo", "ADMIN_AUTH_MODE": "demo" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ottv2-bot-cup-staging",
+          "database_id": "c82abd1a-c2d0-4b69-a995-67d626f4c6fb",
+          "migrations_dir": "../bot-cup-api/migrations"
+        }
+      ]
+    },
+    "showcase": {
+      // 100-team demo: the organisers' site for the event `scripts/bot-cup/showcase.mjs deploy` points it at (--var).
+      "name": "ottv2-bot-cup-admin-showcase",
+      "workers_dev": true,
+      "preview_urls": false,
+      "observability": { "enabled": true },
+      "vars": { "BOT_CUP_EVENT_ID": "showcase-unset", "ADMIN_AUTH_MODE": "demo" },
       "d1_databases": [
         {
           "binding": "DB",

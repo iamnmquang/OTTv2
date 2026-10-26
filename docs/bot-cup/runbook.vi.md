@@ -27,7 +27,7 @@ Mỗi bước chỉ chạy khi giai đoạn đúng và mọi ván của bước 
    - Vi phạm nặng (§8.8): đề nghị **loại đội** ở tab *Đội* (admin thứ hai duyệt). Đội bị loại không được ghép ở vòng sau; ván đã đấu vẫn tính cho đối thủ.
 3. **Bắt đầu vòng kiểm tra** → chờ runner xong → **Chốt vòng kiểm tra** (công bố JSON + SHA-256).
 4. **Bắt đầu vòng loại** (≤ 10 đội: vòng tròn tạo hết một lần; > 10: Swiss, mỗi vòng bấm *Tạo vòng Swiss kế tiếp*) → **Chốt vòng loại**.
-5. **Phỏng vấn code**: bấm *Đạt*/*Không đạt* cho từng đội trong Top 4 (đội trượt được thay bằng đội kế tiếp). Còn dưới 4 đội đạt thì *Kết thúc không cần loại trực tiếp*.
+5. **Phỏng vấn code**: chỉ 4 hạt giống đầu phải phỏng vấn, kể cả khi nhánh 8 hoặc 16 đội (`events.config_json.knockoutSize`, mặc định theo chế độ). Bấm *Đạt*/*Không đạt* từng đội, hoặc *Đạt tất cả … đội đang chờ phỏng vấn*. Đội trượt được thay bằng đội kế tiếp; hạt giống 5 trở xuống vào thẳng. Còn dưới 4 đội đạt thì *Kết thúc không cần loại trực tiếp*. Mỗi bước điều phối hiện phần *Xem trước* (số cặp, ván, cỡ nhánh) trước khi xác nhận.
 6. **Bắt đầu loại trực tiếp** → sau mỗi vòng **Chốt vòng loại trực tiếp hiện tại** (hòa thì tự xếp 2 ván tie-break trên bản đồ bốc thăm, tối đa 2 lần, rồi hạt giống cao hơn đi tiếp) → kết quả chung cuộc công bố.
 7. **Khiếu nại**: trả lời ở cuối tab *Điều phối giải* (đội có 12 giờ sau mỗi lần công bố, tối đa 3 lần/giai đoạn).
 
@@ -65,3 +65,18 @@ Ván chỉ phát được khi runner đã chấm xong; replay do API dựng lạ
 - Tải JSON kết quả từng giai đoạn (tab *Điều phối giải* → *Tải JSON*), kiểm tra SHA-256 khớp trang công khai.
 - `GET /admin-api/audit/verify` phải báo chuỗi băm hợp lệ; lưu bản xuất CSV đội và kết quả.
 - Thu hồi token runner (`node scripts/bot-cup/runner-token.mjs <tên> --revoke --env …`), vô hiệu tài khoản admin tạm.
+
+## 6. Demo 100 đội (staging, giả lập)
+
+Dùng để trình diễn trang BTC và nhánh đấu với dữ liệu đầy đủ; **không** dùng cho giải thật. Đội và bài nộp là tổng hợp, mã đội
+không chạy: runner giả lập đánh bằng AI trong game theo "sức mạnh" ghi ở đầu mỗi bài, Worker vẫn chơi lại từng replay bằng luật.
+
+1. `npm run bot-cup:showcase -- seed --freeze-in 2`: tạo sự kiện mới `showcase-<giờ UTC>` (100 đội, nhánh 16) trên D1 staging.
+   Bài nộp không xoá được nên mỗi lần demo là một sự kiện mới; sự kiện hiện tại ghi ở `var/bot-cup/showcase/current.json`.
+2. `npm run bot-cup:showcase -- deploy`: deploy `ottv2-bot-cup-api-showcase` và `ottv2-bot-cup-admin-showcase` trỏ vào sự kiện đó.
+   Lần đầu cần secret cho API: `OTP_PEPPER` (ngẫu nhiên ≥ 16 ký tự) và `TURNSTILE_SECRET` (khoá test `1x0000000000000000000000000000000AA`).
+3. Runner giả lập (một lần: `node scripts/bot-cup/runner-token.mjs showcase-sim --env staging`):
+   `BOT_CUP_RUNNER_URL=https://ottv2-bot-cup-api-showcase.opticsquang.workers.dev BOT_CUP_RUNNER_TOKEN_FILE=var/bot-cup/runner-token-showcase-sim.txt BOT_CUP_RUNNER_SIMULATE=true BOT_CUP_RUNNER_SLOTS=8 npm run bot-cup:runner`.
+   Runner từ chối chạy giả lập với URL khác Worker showcase hoặc localhost, và từ chối mọi bài không có dòng sức mạnh.
+4. Điều phối: bấm tay trên https://ottv2-bot-cup-admin-showcase.opticsquang.workers.dev (đăng nhập demo một bấm), hoặc để
+   `npm run bot-cup:showcase -- drive` tự bấm hết các bước (4 hạt giống đầu được cho đạt phỏng vấn).

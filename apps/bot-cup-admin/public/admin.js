@@ -95,7 +95,7 @@ const ERRORS = {
   not_swiss: "Vòng loại không phải Swiss.",
   swiss_complete: "Đã đủ số vòng Swiss.",
   swiss_unfinished: "Chưa đấu đủ số vòng Swiss.",
-  interviews_pending: "Còn đội trong Top 4 chưa phỏng vấn.",
+  interviews_pending: "Còn đội trong 4 hạt giống đầu chưa phỏng vấn.",
   knockout_not_possible: "Dưới 4 đội: không đấu loại trực tiếp, dùng \"Kết thúc không cần loại trực tiếp\".",
   knockout_expected: "Đủ đội để đấu loại trực tiếp: hãy bắt đầu loại trực tiếp.",
   already_answered: "Khiếu nại đã được trả lời.",
@@ -150,6 +150,25 @@ async function act(label, path, body = {}, { needsReason = true, confirmText } =
 }
 
 const writer = () => me?.role === "admin";
+
+const SLOT_LIST = (slots) => (slots?.length ? slots.join(", ") : "—");
+/** One line about what a tournament step would do, from its dry-run summary. */
+function describePreview(p) {
+  const parts = [];
+  if (p.sealed !== undefined) parts.push(`${p.sealed} bài niêm phong, ${p.notSealed} đội không có bài`);
+  if (p.entrants !== undefined) parts.push(`${p.entrants} đội đấu sơ loại`);
+  if (p.teams !== undefined) parts.push(`${p.teams} đội`);
+  if (p.qualified !== undefined) parts.push(`${p.qualified} đội đạt sơ loại`);
+  if (p.games !== undefined) parts.push(`${p.games} ván`);
+  if (p.format) parts.push(`thể thức ${p.format === "round_robin" ? "vòng tròn" : p.format}`);
+  if (p.pairings !== undefined) parts.push(Array.isArray(p.pairings) ? `cặp ${SLOT_LIST(p.pairings)}` : `${p.pairings} cặp`);
+  if (p.round !== undefined) parts.push(`vòng ${p.round}${p.rounds ? `/${p.rounds}` : ""}`);
+  if (p.map) parts.push(`bản đồ ${p.map}`);
+  if (p.size !== undefined) parts.push(`nhánh ${p.size} đội`);
+  if (p.tiebreaks?.length) parts.push(`tie-break ${SLOT_LIST(p.tiebreaks.map((t) => t.slot))}`);
+  if (p.finished) parts.push("kết thúc giải, công bố kết quả cuối");
+  return parts.length ? parts.join(" · ") : "không có thông tin thêm";
+}
 
 function table(headers, rows) {
   return h("div", { class: "table-wrap" }, h("table", {},
@@ -457,17 +476,31 @@ const TABS = {
       knockout: [["knockout-advance", "Chốt vòng loại trực tiếp hiện tại"]],
       finished: []
     };
-    const steps = (STEPS[data.phase] ?? []).map(([step, label]) =>
-      button(label, () => act(label, `/tournament/${step}`, {}, { confirmText: `${label}? Bước này ghi vào audit log và không hoàn tác được.` })));
+    const steps = (STEPS[data.phase] ?? []).map(([step, label]) => button(label, async () => {
+      let preview;
+      try {
+        preview = await api("POST", `/tournament/${step}`, { dryRun: true });
+      } catch (error) {
+        return say(`${label}: ${errorText(error)}`, true);
+      }
+      await act(label, `/tournament/${step}`, {}, { confirmText: `${label}?
+
+Xem trước: ${describePreview(preview)}
+
+Bước này ghi vào audit log và không hoàn tác được.` });
+    }));
     const sha = (value) => h("code", { title: value ?? "" }, short(value, 16));
     const interview = data.interviews;
     const waiting = new Set(interview?.waitingFor ?? []);
     const seeded = new Set(interview?.seeded ?? []);
+    const bracketLabel = `vào nhánh ${interview?.size ?? data.knockoutSize}`;
+    const bulkPass = interview?.waitingFor?.length ? button(`Đạt tất cả ${interview.waitingFor.length} đội đang chờ phỏng vấn`, () =>
+      act(`Phỏng vấn ${interview.waitingFor.length} đội: đạt`, "/tournament/interviews", { teamIds: interview.waitingFor, result: "pass" })) : null;
     const sections = [
       h("section", {},
         h("h2", {}, "Điều phối giải"),
         stepper,
-        h("p", {}, "Giai đoạn: ", badge(PHASE_LABEL[data.phase] ?? data.phase, "ok"), ` · Chế độ: ${data.mode} · Khóa code: ${time(data.codeFreezeAt)}`),
+        h("p", {}, "Giai đoạn: ", badge(PHASE_LABEL[data.phase] ?? data.phase, "ok"), ` · Chế độ: ${data.mode} · Nhánh loại trực tiếp: ${data.knockoutSize} đội · Khóa code: ${time(data.codeFreezeAt)}`),
         steps.length ? h("div", { class: "row-actions" }, steps) : h("p", { class: "muted" }, "Không còn bước nào."),
         h("p", { class: "muted" }, "Mỗi bước kiểm tra giai đoạn và chờ mọi ván của giai đoạn trước kết thúc; máy chủ từ chối nếu chưa đủ điều kiện.")),
       h("section", {},
@@ -488,10 +521,11 @@ const TABS = {
     }
     if (data.standings.format) {
       sections.push(h("section", {}, h("h3", {}, `Bảng xếp hạng vòng loại (${data.standings.format === "round_robin" ? "vòng tròn" : "Swiss"})`),
+        bulkPass ? h("div", { class: "row-actions" }, bulkPass) : null,
         table(["Hạng", "Đội", "Điểm", "Ván thắng", "Số ván", "SB", "Buchholz-1", "Phỏng vấn", ""], data.standings.rows.map((row) => h("tr", {},
           h("td", {}, row.rank), h("td", {}, row.displayName), h("td", {}, row.points), h("td", {}, row.wins), h("td", {}, row.games),
           h("td", {}, row.sb ?? "—"), h("td", {}, row.buchholzCut1 ?? "—"),
-          h("td", {}, seeded.has(row.teamId) ? badge("vào Top 4", "ok") : waiting.has(row.teamId) ? badge("cần phỏng vấn", "warn") : (data.entrants.find((e) => e.teamId === row.teamId)?.interview ?? "—")),
+          h("td", {}, seeded.has(row.teamId) ? badge(bracketLabel, "ok") : waiting.has(row.teamId) ? badge("cần phỏng vấn", "warn") : (data.entrants.find((e) => e.teamId === row.teamId)?.interview ?? "—")),
           h("td", {}, data.phase === "verification" ? h("div", { class: "row-actions" },
             button("Đạt", () => act(`Phỏng vấn ${row.displayName}: đạt`, "/tournament/interview", { teamId: row.teamId, result: "pass" })),
             button("Không đạt", () => act(`Phỏng vấn ${row.displayName}: không đạt`, "/tournament/interview", { teamId: row.teamId, result: "fail" }), "danger")
@@ -632,6 +666,7 @@ async function start() {
       document.getElementById("app").hidden = true;
       document.getElementById("menu-toggle").hidden = true;
       document.getElementById("login").hidden = false;
+      await showLoginMode();
       document.getElementById("who").textContent = "";
       header = null;
       renderHeader();
@@ -645,9 +680,29 @@ async function start() {
   document.getElementById("app").hidden = false;
   document.getElementById("menu-toggle").hidden = false;
   document.getElementById("who").textContent = `${me.email} · ${me.role === "admin" ? "admin" : "chỉ xem"}`;
-  document.getElementById("logout").hidden = me.authMode !== "password";
+  document.getElementById("logout").hidden = me.authMode === "access";
   if (currentTab !== "overview") refreshHeader();
   await show(currentTab);
+}
+
+/** Demo mode swaps the password + TOTP form for one sign-in button per organiser account. */
+async function showLoginMode() {
+  const info = await api("GET", "/login").catch(() => ({ authMode: "password" }));
+  const demo = info.authMode === "demo";
+  document.getElementById("demo-login").hidden = !demo;
+  document.getElementById("login-form").hidden = demo;
+  if (!demo) return;
+  document.getElementById("demo-accounts").replaceChildren(...info.admins.map((account) =>
+    h("button", { type: "button", onclick: () => demoLogin(account.email) }, `Đăng nhập: ${account.email}${account.role === "admin" ? "" : " (chỉ xem)"}`)));
+}
+
+async function demoLogin(email) {
+  try {
+    await api("POST", "/login", { email });
+    await start();
+  } catch (error) {
+    say(`Không đăng nhập được: ${errorText(error)}`, true);
+  }
 }
 
 document.getElementById("login-form").addEventListener("submit", async (event) => {

@@ -13,6 +13,9 @@ const HOUR = 60 * 60 * 1000;
 export const GATE_POLICY = Object.freeze({ opponent: "easy", passPoints: 4, games: 6 });
 export const ROUND_ROBIN_MAX_TEAMS = 10;
 export const KNOCKOUT_SIZE = Object.freeze({ demo: 4, production: 16 });
+export const KNOCKOUT_SIZES = Object.freeze([16, 8, 4]);
+/** Code interviews are for the top 4 seeds only, whatever the bracket size (plan §8.6). */
+export const INTERVIEW_COUNT = 4;
 export const KNOCKOUT_MAX_TIEBREAKS = 2;
 export const SWISS_BYE_POINTS = 2;
 export const APPEAL_POLICY = Object.freeze({ maxPerStage: 3, windowMs: { demo: 12 * HOUR, production: 24 * HOUR }, bodyMax: 2000 });
@@ -237,19 +240,34 @@ export function pairSwiss({ active, round, roundCount, standings, history }) {
 
 const BRACKETS = Object.freeze({
   4: [[1, 4], [2, 3]],
+  8: [[1, 8], [4, 5], [3, 6], [2, 7]],
   16: [[1, 16], [8, 9], [5, 12], [4, 13], [3, 14], [6, 11], [7, 10], [2, 15]]
 });
+
+/** The event's bracket size: `config.knockoutSize` (4, 8 or 16) when set, else the mode's default. */
+export function knockoutSizeOf(event) {
+  const configured = Number(event?.config?.knockoutSize);
+  return KNOCKOUT_SIZES.includes(configured) ? configured : (KNOCKOUT_SIZE[event?.mode] ?? 4);
+}
+
+/** The largest bracket (16, 8 or 4) that fits both the event's size and `teams`; 0 below 4 teams. */
+export function knockoutBracketSize(size, teams) {
+  return KNOCKOUT_SIZES.find((bracket) => bracket <= size && bracket <= teams) ?? 0;
+}
+
+const FIRST_ROUND_SLOT = Object.freeze({ 4: "SF", 8: "QF", 16: "R16-" });
 
 /**
  * First knockout round by seed (plan §7.6). Fewer than 4 qualified teams: no knockout.
  * @param {string[]} seeded team ids, seed 1 first
+ * @param {number} size the event's bracket size; fewer seeded teams play the largest bracket that fits
  * @returns {Array<{ slot: string, high: string, low: string, highSeed: number, lowSeed: number }>}
  */
 export function knockoutFirstRound(seeded, size) {
-  if (seeded.length < 4) return [];
-  const bracketSize = size >= 16 && seeded.length >= 16 ? 16 : 4;
+  const bracketSize = knockoutBracketSize(size, seeded.length);
+  if (!bracketSize) return [];
   return BRACKETS[bracketSize].map(([high, low], index) => ({
-    slot: bracketSize === 4 ? `SF${index + 1}` : `R16-${index + 1}`,
+    slot: `${FIRST_ROUND_SLOT[bracketSize]}${index + 1}`,
     high: seeded[high - 1],
     low: seeded[low - 1],
     highSeed: high,
@@ -306,23 +324,32 @@ export function nextKnockoutPairings(results) {
 }
 
 /**
- * Top 4 after the code interview (plan §8.6, Demo): a team that fails is out and the next team in the qualifying
- * ranking who has not failed takes its place; seeds follow the qualifying ranking.
+ * The knockout's `size` seeds after the code interviews (plan §8.6): the top `interviewed` seeds must pass one; a team that
+ * fails is out and the next team in the qualifying ranking who has not failed takes its place (and its interview, while it
+ * lands in the top `interviewed`). Seeds below that go straight in. Seeds follow the qualifying ranking.
  * @param {string[]} ranking team ids, first place first
  * @param {Record<string, "pass"|"fail"|"pending">} interviews
+ * @param {number} size how many teams the knockout takes
+ * @param {number} [interviewed] how many of the top seeds are interviewed
  * @returns {{ ready: boolean, seeded: string[], waitingFor: string[] }}
  */
-export function topFourAfterInterviews(ranking, interviews) {
+export function topAfterInterviews(ranking, interviews, size, interviewed = INTERVIEW_COUNT) {
   const seeded = [];
   const waitingFor = [];
   for (const teamId of ranking) {
-    if (seeded.length + waitingFor.length >= 4) break;
+    const place = seeded.length + waitingFor.length;
+    if (place >= size) break;
     const result = interviews[teamId] ?? "pending";
     if (result === "fail") continue;
-    if (result === "pass") seeded.push(teamId);
+    if (result === "pass" || place >= interviewed) seeded.push(teamId);
     else waitingFor.push(teamId);
   }
-  return { ready: waitingFor.length === 0 && seeded.length === Math.min(4, ranking.filter((id) => interviews[id] !== "fail").length), seeded, waitingFor };
+  return { ready: waitingFor.length === 0 && seeded.length === Math.min(size, ranking.filter((id) => interviews[id] !== "fail").length), seeded, waitingFor };
+}
+
+/** Top 4 (the Demo bracket), all four interviewed; kept for callers that predate configurable bracket sizes. */
+export function topFourAfterInterviews(ranking, interviews) {
+  return topAfterInterviews(ranking, interviews, 4);
 }
 
 // ---------- appeals ----------
