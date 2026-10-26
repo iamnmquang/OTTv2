@@ -172,3 +172,9 @@
     width: 100%;
   }
 }
+
+/* Bracket overview (key B): the whole tree, large, scrolling inside the stage if it is wider than the screen. */
+.bracket {
+  min-width: 0;
+  overflow: auto;
+}

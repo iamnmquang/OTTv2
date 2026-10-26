@@ -11,7 +11,7 @@ const NOW = Date.now();
 function makeEvent(overrides: Partial<BotCupEvent> = {}): BotCupEvent {
   return {
     id: "ev", name: "OTT Bot Cup Thử", mode: "demo", phase: "registration", registrationOpen: true,
-    registrationOpensAt: NOW - 86_400_000, registrationClosesAt: NOW + 86_400_000, practiceOpensAt: null, codeFreezeAt: null, finalsAt: null,
+    registrationOpensAt: NOW - 86_400_000, registrationClosesAt: NOW + 86_400_000, practiceOpensAt: null, codeFreezeAt: null, finalsAt: null, knockoutSize: 4,
     eligibility: { mssvDigits: 8, mssvPrefix: null, emailDomain: "vnu.edu.vn", allowExternalEmail: true },
     turnstileSiteKey: null, serverTime: NOW, ...overrides,
   };

@@ -87,7 +87,7 @@ describe("Bot Cup messages", () => {
 describe("bannerLine", () => {
   const event = {
     registrationOpensAt: Date.UTC(2026, 10, 30, 0), registrationClosesAt: Date.UTC(2026, 11, 4, 17),
-    codeFreezeAt: Date.UTC(2026, 11, 6, 17), finalsAt: Date.UTC(2026, 11, 10, 2),
+    codeFreezeAt: Date.UTC(2026, 11, 6, 17), finalsAt: Date.UTC(2026, 11, 10, 2), knockoutSize: 4,
   } as never;
   it("names the next milestone", () => {
     expect(bannerLine(null, 0)).toMatch(/Giải đấu lập trình bot/);

@@ -4,7 +4,7 @@
  * neither. Disqualifying a team and changing a game result wait for a second admin.
  *
  * Dependencies are injected so the Worker and Node tests run the same code:
- *   db, now, config { eventId, authMode: "access"|"password", access?: { teamDomain, aud }, allowedOrigins: string[] },
+ *   db, now, config { eventId, authMode: "access"|"password"|"demo", access?: { teamDomain, aud }, allowedOrigins: string[] },
  *   fetchImpl (Access certs)
  */
 import {
@@ -35,6 +35,8 @@ const ONLINE_MS = 2 * 60 * 1000;
 const REASON_MAX = 500;
 // After a flag is shown to the team, it has 48 hours to explain (plan §8.8).
 const FLAG_EXPLAIN_MS = 48 * 60 * 60 * 1000;
+// Demo mode signs in with one click; an empty admins table gets two accounts so four-eyes actions can still be shown.
+const DEMO_ADMINS = Object.freeze(["btc1@demo.local", "btc2@demo.local"]);
 
 export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
   const store = createStore(db);
@@ -101,9 +103,48 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
     throw new HttpError(503, "audit_busy");
   }
 
-  // ---------- session (password mode) ----------
+  // ---------- session (password and demo modes) ----------
+
+  async function startSession(admin, payload = {}, statements = []) {
+    const token = randomToken();
+    await audited(admin, { action: "admin.login", payload }, [
+      ...statements,
+      store.statement("INSERT INTO admin_sessions (id_hash, email, created_at, expires_at) VALUES (?, ?, ?, ?)", await sha256Hex(token), admin.email, now(), now() + SESSION_MS)
+    ]);
+    return json({ email: admin.email, role: admin.role }, 200, {
+      "set-cookie": `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_MS / 1000}`
+    });
+  }
+
+  async function demoAdmins() {
+    return all("SELECT email, role FROM admins WHERE disabled_at IS NULL ORDER BY role, email");
+  }
+
+  /** What the sign-in page should show; public, and lists accounts only in demo mode. */
+  async function loginInfo() {
+    if (config.authMode !== "demo") return json({ authMode: config.authMode });
+    const admins = await demoAdmins();
+    return json({ authMode: "demo", admins: admins.length ? admins : DEMO_ADMINS.map((email) => ({ email, role: "admin" })) });
+  }
+
+  async function demoLogin(request) {
+    const body = await readJson(request);
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const statements = [];
+    if (!(await first("SELECT 1 AS found FROM admins LIMIT 1"))) {
+      for (const demoEmail of DEMO_ADMINS) {
+        statements.push(store.statement("INSERT INTO admins (email, role, added_by, created_at) VALUES (?, 'admin', 'demo', ?)", demoEmail, now()));
+      }
+    }
+    const admin = statements.length
+      ? { email: DEMO_ADMINS.includes(email) ? email : DEMO_ADMINS[0], role: "admin" }
+      : await first("SELECT * FROM admins WHERE disabled_at IS NULL AND (email = ? OR ? = '') ORDER BY role, email LIMIT 1", email, email);
+    if (!admin) throw new HttpError(401, "login_failed");
+    return startSession(admin, { mode: "demo" }, statements);
+  }
 
   async function login(request) {
+    if (config.authMode === "demo") return demoLogin(request);
     if (config.authMode !== "password") throw new HttpError(404, "not_found");
     const body = await readJson(request);
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -118,14 +159,7 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
       await store.statement("UPDATE admins SET failed_logins = ?, login_locked_until = ? WHERE email = ?", locked ? 0 : failures, locked ? now() + LOGIN_LOCK.lockMs : null, email).run();
       throw new HttpError(401, "login_failed");
     }
-    const token = randomToken();
-    await audited(admin, { action: "admin.login" }, [
-      store.statement("UPDATE admins SET failed_logins = 0, login_locked_until = NULL WHERE email = ?", email),
-      store.statement("INSERT INTO admin_sessions (id_hash, email, created_at, expires_at) VALUES (?, ?, ?, ?)", await sha256Hex(token), email, now(), now() + SESSION_MS)
-    ]);
-    return json({ email, role: admin.role }, 200, {
-      "set-cookie": `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_MS / 1000}`
-    });
+    return startSession(admin, {}, [store.statement("UPDATE admins SET failed_logins = 0, login_locked_until = NULL WHERE email = ?", email)]);
   }
 
   async function logout(request) {
@@ -600,6 +634,7 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
       const path = url.pathname.slice(PREFIX.length);
       try {
         if (request.method !== "GET" && !config.allowedOrigins.includes(request.headers.get("origin") || "")) throw new HttpError(403, "forbidden_origin");
+        if (path === "/login" && request.method === "GET") return await loginInfo();
         if (path === "/login" && request.method === "POST") return await login(request);
         if (path === "/logout" && request.method === "POST") return await logout(request);
         const candidates = routes.filter(([, pattern]) => pattern.test(path));

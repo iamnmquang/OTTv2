@@ -73,6 +73,30 @@
         }
       ]
     },
+    "showcase": {
+      // 100-team demo (scripts/bot-cup/showcase.mjs): synthetic teams on the staging database, played by the simulated
+      // runner. `showcase.mjs deploy` sets BOT_CUP_EVENT_ID to the event it seeded (--var). No BOT_CUP_RUNNER_IMAGE_ID: the
+      // simulated runner runs no container, and only showcase bots (strength line in the source) are ever simulated.
+      "name": "ottv2-bot-cup-api-showcase",
+      "workers_dev": true,
+      "preview_urls": false,
+      "observability": { "enabled": true },
+      "vars": {
+        "BOT_CUP_EVENT_ID": "showcase-unset",
+        "BOT_CUP_WEB_ORIGIN": "https://ottv2-staging.vercel.app",
+        "BOT_CUP_ALLOWED_ORIGINS": "https://ottv2-staging.vercel.app,http://localhost:5173",
+        "BOT_CUP_EMAIL_MODE": "outbox",
+        "TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ottv2-bot-cup-staging",
+          "database_id": "c82abd1a-c2d0-4b69-a995-67d626f4c6fb",
+          "migrations_dir": "migrations"
+        }
+      ]
+    },
     "test": {
       // Local only (`wrangler dev --local`), used by tests/bot-cup-api-worker.test.js.
       "name": "ottv2-bot-cup-api-test",

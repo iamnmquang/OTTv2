@@ -275,7 +275,7 @@ describe("bot-cup tournament flow (Demo)", () => {
     assert.deepEqual(final, [...ranking.slice(2), ranking[0], ranking[1]], "teams that failed the interview come last");
   });
 
-  it("runs a Swiss qualifying for 11 teams: one bye a round, no rematches, a disqualified team leaves later rounds", async () => {
+  it("runs a Swiss qualifying for 11 teams: one bye a round, no rematches, a disqualified team leaves later rounds, then a bracket of 8", async () => {
     const h = await createHarness({ event: { code_freeze_at: FREEZE } });
     const sqlite = h.db.sqlite;
     const runner = h.runner();
@@ -290,10 +290,13 @@ describe("bot-cup tournament flow (Demo)", () => {
     const admin = adminMod.createAdminApi({ db: h.db, now: () => h.env.clock, config: { eventId: "ev", authMode: "password", allowedOrigins: [ADMIN_ORIGIN] } });
     sqlite.prepare("INSERT INTO admins (email, role, added_by, created_at) VALUES ('a@btc.test', 'admin', 'test', 0)").run();
     sqlite.prepare("INSERT INTO admin_sessions (id_hash, email, created_at, expires_at) VALUES (?, 'a@btc.test', 0, ?)").run(crypto.createHash("sha256").update("s").digest("hex"), START * 10);
-    const step = async (name) => {
-      const response = await admin.fetch(new Request(`${ADMIN_ORIGIN}/admin-api/tournament/${name}`, { method: "POST", headers: { cookie: "__Host-ottcup_admin=s", origin: ADMIN_ORIGIN, "content-type": "application/json" }, body: JSON.stringify({ reason: "Swiss" }) }));
+    const step = async (name, extra = {}) => {
+      const response = await admin.fetch(new Request(`${ADMIN_ORIGIN}/admin-api/tournament/${name}`, { method: "POST", headers: { cookie: "__Host-ottcup_admin=s", origin: ADMIN_ORIGIN, "content-type": "application/json" }, body: JSON.stringify({ reason: "Swiss", ...extra }) }));
       return { status: response.status, body: await response.json() };
     };
+    const view = async () => (await admin.fetch(new Request(`${ADMIN_ORIGIN}/admin-api/tournament`, { headers: { cookie: "__Host-ottcup_admin=s" } }))).json();
+    // This event takes a bracket of 8 (events.config_json), whatever its mode's default.
+    sqlite.prepare("UPDATE events SET config_json = ? WHERE id = 'ev'").run(JSON.stringify({ knockoutSize: 8 }));
     const drainAll = async () => {
       for (;;) {
         const jobs = (await h.call("POST", "/runner/claim", { token: runner, json: { slots: 8 } })).body.jobs;
@@ -314,6 +317,15 @@ describe("bot-cup tournament flow (Demo)", () => {
     assert.equal((await step("gate-close")).body.format, "swiss");
     const started = await step("qualifying-start");
     assert.deepEqual([started.body.format, started.body.round, started.body.rounds], ["swiss", 1, 7]);
+    // The bracket data: round 1 is out with its map, five pairings and a bye; the knockout tree of 8 is drawn empty.
+    const early = (await h.call("GET", "/api/t/tournament")).body;
+    assert.deepEqual(early.rounds.map((round) => [round.round, round.mapId, round.pairings.length]), [[1, "classic", 6]]);
+    assert.equal(early.rounds[0].pairings.filter((pairing) => pairing.bye).length, 1);
+    assert.deepEqual(early.rounds[0].pairings.find((pairing) => !pairing.bye).games.map((game) => game.status), ["queued", "queued"]);
+    assert.deepEqual([early.bracket.size, early.bracket.rounds.map((round) => round.name)], [8, ["QF", "SF", "F"]]);
+    assert.ok(early.bracket.rounds.every((round) => round.slots.every((slot) => slot.pairing === null)));
+    assert.doesNotMatch(JSON.stringify(early), /team-\d|2602/, "no team ids or MSSV in the public view");
+    assert.ok((await view()).rounds[0].pairings.every((pairing) => pairing.bye || pairing.teamA.startsWith("team-")), "the admin view keeps the ids");
     assert.equal((await step("swiss-next")).body.error, "games_pending");
 
     for (let round = 1; round <= 7; round++) {
@@ -354,5 +366,49 @@ describe("bot-cup tournament flow (Demo)", () => {
     assert.equal(qualifying.body.standings[0].team, "Đội swiss a", "the strongest team tops the table");
     assert.ok(!qualifying.body.standings.some((row) => row.team === "Đội swiss k"), "the disqualified team is not ranked");
     assert.equal(qualifying.body.pairings.filter((pairing) => pairing.bye).length, 3);
+
+    // A bracket of 8 from the 10 ranked teams; only the top 4 seeds are interviewed. The 2nd fails: the 5th moves up into
+    // the interviewed four and the 9th joins the bracket.
+    const ranked = (await view()).standings.rows.map((row) => row.teamId);
+    let interviews = (await view()).interviews;
+    assert.deepEqual([interviews.size, interviews.waitingFor, interviews.seeded], [8, ranked.slice(0, 4), ranked.slice(4, 8)]);
+    assert.equal((await step("knockout-start", { dryRun: true })).body.error, "interviews_pending", "a preview runs the same checks");
+    assert.equal((await step("interview", { teamId: ranked[1], result: "fail" })).status, 200);
+    interviews = (await view()).interviews;
+    assert.deepEqual(interviews.waitingFor, [ranked[0], ...ranked.slice(2, 5)]);
+    assert.equal((await step("interviews", { teamIds: [...interviews.waitingFor, "no-such-team"], result: "pass" })).status, 404, "all or nothing");
+    const bulk = await step("interviews", { teamIds: interviews.waitingFor, result: "pass" });
+    assert.deepEqual([bulk.status, bulk.body.teamIds.length], [200, 4]);
+    assert.equal(sqlite.prepare("SELECT action FROM audit_log ORDER BY seq DESC LIMIT 1").get().action, "tournament.interview_bulk");
+
+    const auditBefore = sqlite.prepare("SELECT COUNT(*) AS n FROM audit_log").get().n;
+    const preview = await step("knockout-start", { dryRun: true, reason: undefined });
+    assert.deepEqual([preview.body.dryRun, preview.body.size, preview.body.pairings], [true, 8, ["QF1", "QF2", "QF3", "QF4"]]);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM audit_log").get().n, auditBefore, "a preview writes nothing");
+    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM pairings WHERE stage = 'knockout'").get().n, 0);
+
+    const seeds = [ranked[0], ...ranked.slice(2, 9)];
+    const knockout = await step("knockout-start");
+    assert.deepEqual(knockout.body.seeds, seeds);
+    const quarterFinals = sqlite.prepare("SELECT slot, team_a, team_b, seed_a, seed_b FROM pairings WHERE stage = 'knockout' ORDER BY slot").all();
+    assert.deepEqual(quarterFinals.map((row) => `${row.slot}:${row.seed_a}-${row.seed_b}`), ["QF1:1-8", "QF2:4-5", "QF3:3-6", "QF4:2-7"]);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM entrants WHERE seed IS NOT NULL").get().n, 8);
+
+    const tree = (await h.call("GET", "/api/t/tournament")).body.bracket;
+    assert.deepEqual(tree.rounds[0].slots.map((slot) => [slot.slot, slot.pairing?.seeds]), [["QF1", [1, 8]], ["QF2", [4, 5]], ["QF3", [3, 6]], ["QF4", [2, 7]]]);
+    assert.ok(tree.rounds[1].slots.every((slot) => slot.pairing === null), "semi-finals not drawn yet");
+    await drainAll();
+    assert.deepEqual((await step("knockout-advance")).body.pairings, ["SF1", "SF2"]);
+    await drainAll();
+    assert.deepEqual((await step("knockout-advance")).body.pairings, ["F", "3RD"]);
+    await drainAll();
+    assert.equal((await step("knockout-advance")).body.finished, true);
+    const final = (await h.call("GET", "/api/t/results/final")).body;
+    assert.equal(final.ranking[0].team, "Đội swiss a", "the top seed, strongest team, wins");
+    assert.equal(final.knockout.length, 4 + 2 + 2);
+    const done = (await h.call("GET", "/api/t/tournament")).body;
+    assert.equal(done.rounds.length, 7);
+    assert.ok(done.bracket.rounds.every((round) => round.slots.every((slot) => slot.pairing?.winner)), "every slot played and decided");
+    assert.doesNotMatch(JSON.stringify(done), /team-\d|2602/);
   });
 });

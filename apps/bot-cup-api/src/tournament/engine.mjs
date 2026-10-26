@@ -1,5 +1,5 @@
 /**
- * Tournament control on D1 (plan §7): code freeze, gate, qualifying (round robin or Swiss), Top 4 interviews, knockout,
+ * Tournament control on D1 (plan §7): code freeze, gate, qualifying (round robin or Swiss), Top 4 interviews, knockout of 4, 8 or 16,
  * published result documents. The admin site calls the `plan*` steps, each of which returns the D1 statements to run
  * together with its audit row; the player API reads `publicView`. Results are always worked out from the games
  * themselves (`matches`), so a rerun or an approved result change is picked up everywhere.
@@ -8,7 +8,6 @@
  */
 import {
   GATE_POLICY,
-  KNOCKOUT_SIZE,
   JOB_PRIORITY,
   chooseFormat,
   drawTiebreakMap,
@@ -16,7 +15,9 @@ import {
   gateGames,
   gateVerdict,
   knockoutDecision,
+  knockoutBracketSize,
   knockoutFirstRound,
+  knockoutSizeOf,
   nextKnockoutPairings,
   pairSwiss,
   pairingGames,
@@ -27,7 +28,7 @@ import {
   swissMap,
   swissRoundCount,
   swissStandings,
-  topFourAfterInterviews
+  topAfterInterviews
 } from "../../../../packages/bot-cup-core/src/index.mjs";
 import { HttpError } from "../http.mjs";
 import { bulkInsert, enqueueMatches } from "../queue.mjs";
@@ -317,37 +318,49 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
   }
 
   async function planInterview(teamId, result) {
+    return planInterviews([teamId], result);
+  }
+
+  /** One result for several teams at once (an organiser passing the whole Top 4 in a demo); all or nothing. */
+  async function planInterviews(teamIds, result) {
     const ev = await event();
     requirePhase(ev.phase, "verification");
     if (!["pass", "fail", "pending"].includes(result)) throw new HttpError(400, "invalid_request", { field: "result" });
-    const entrant = await first("SELECT * FROM entrants WHERE event_id = ? AND team_id = ?", eventId, teamId);
-    if (!entrant || entrant.gate_status !== "qualified") throw new HttpError(404, "not_found");
-    return { statements: [store.statement("UPDATE entrants SET interview = ? WHERE event_id = ? AND team_id = ?", result, eventId, teamId)], summary: { teamId, result } };
+    const ids = [...new Set(Array.isArray(teamIds) ? teamIds.map(String) : [])];
+    if (ids.length === 0 || ids.length > 64) throw new HttpError(400, "invalid_request", { field: "teamIds" });
+    const qualified = new Set((await entrants()).filter((entrant) => entrant.gate_status === "qualified").map((entrant) => entrant.team_id));
+    if (ids.some((teamId) => !qualified.has(teamId))) throw new HttpError(404, "not_found");
+    const statements = ids.map((teamId) => store.statement("UPDATE entrants SET interview = ? WHERE event_id = ? AND team_id = ?", result, eventId, teamId));
+    return { statements, summary: ids.length === 1 ? { teamId: ids[0], result } : { teamIds: ids, result } };
   }
 
-  async function interviewState() {
+  /** The knockout's seeds (N = the largest bracket the table can fill) and which of the top 4 still wait for an interview. */
+  async function interviewState(ev) {
     const standings = await qualifyingStandings();
     const interviews = Object.fromEntries((await entrants()).map((entrant) => [entrant.team_id, entrant.interview]));
-    return { standings, ...topFourAfterInterviews(standings.rows.map((row) => row.teamId), interviews) };
+    const size = knockoutBracketSize(knockoutSizeOf(ev), standings.rows.length);
+    return { standings, size, ...topAfterInterviews(standings.rows.map((row) => row.teamId), interviews, size) };
   }
 
-  /** Knockout Top 4 (plan §7.6, Demo): seeds from the qualifying table after the code interviews. */
+  /** Knockout (plan §7.6): seeds from the qualifying table after the code interviews; bracket of 4, 8 or 16. */
   async function planKnockoutStart() {
     const ev = await event();
     requirePhase(ev.phase, "verification");
-    const state = await interviewState();
+    const state = await interviewState(ev);
     if (state.standings.rows.length < 4) throw new HttpError(409, "knockout_not_possible", { teams: state.standings.rows.length });
     if (!state.ready) throw new HttpError(409, "interviews_pending", { waitingFor: state.waitingFor });
     // Interviews can leave fewer than 4 teams: then the event ends on the qualifying table (finish).
     if (state.seeded.length < 4) throw new HttpError(409, "knockout_not_possible", { teams: state.seeded.length });
+    // Failed interviews can leave e.g. 14 of 16: the bracket shrinks to 8 and only those 8 get a seed.
+    const seeded = state.seeded.slice(0, knockoutBracketSize(state.size, state.seeded.length));
     const byTeam = new Map((await entrants()).map((entrant) => [entrant.team_id, entrant]));
     const statements = [setPhase("knockout")];
-    state.seeded.forEach((teamId, index) => statements.push(store.statement("UPDATE entrants SET seed = ? WHERE event_id = ? AND team_id = ?", index + 1, eventId, teamId)));
-    const opening = knockoutFirstRound(state.seeded, KNOCKOUT_SIZE[ev.mode] ?? 4);
+    seeded.forEach((teamId, index) => statements.push(store.statement("UPDATE entrants SET seed = ? WHERE event_id = ? AND team_id = ?", index + 1, eventId, teamId)));
+    const opening = knockoutFirstRound(seeded, state.size);
     for (const pairing of opening) {
       statements.push(...pairingWithGames("knockout", 1, byTeam.get(pairing.high), byTeam.get(pairing.low), { slot: pairing.slot, seedA: pairing.highSeed, seedB: pairing.lowSeed, games: pairingGames("knockout") }));
     }
-    return { statements, summary: { seeds: state.seeded, pairings: opening.map((pairing) => pairing.slot) } };
+    return { statements, summary: { size: seeded.length, seeds: seeded, pairings: opening.map((pairing) => pairing.slot) } };
   }
 
   /**
@@ -442,7 +455,7 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
   async function planFinishWithoutKnockout() {
     const ev = await event();
     requirePhase(ev.phase, "verification");
-    const state = await interviewState();
+    const state = await interviewState(ev);
     if (state.standings.rows.length >= 4) {
       // A knockout is due unless interviews left fewer than 4 teams; either way the interviews must be done.
       if (!state.ready) throw new HttpError(409, "interviews_pending", { waitingFor: state.waitingFor });
@@ -456,6 +469,7 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
 
   async function adminView() {
     const ev = await event();
+    const knockout = await knockoutView();
     const list = await entrants();
     const gate = ev.phase === "frozen" ? [] : await gateResults();
     const docs = await all("SELECT stage, sha256, published_at FROM stage_results WHERE event_id = ? ORDER BY published_at", eventId);
@@ -473,8 +487,11 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
       })),
       gateProgress: gate.map((result) => ({ team: result.entrant.display_name, played: result.played, verdict: result.verdict })),
       standings: await qualifyingStandings(),
-      knockout: await knockoutView(),
-      interviews: ev.phase === "verification" ? await interviewState() : null,
+      rounds: await qualifyingRounds(),
+      knockout,
+      bracket: await bracketView(ev, knockout),
+      knockoutSize: knockoutSizeOf(ev),
+      interviews: ev.phase === "verification" ? await interviewState(ev) : null,
       documents: docs,
       appeals
     };
@@ -486,8 +503,51 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
       id: pairing.id, round: pairing.round, slot: pairing.slot, red: info.get(pairing.team_a), blue: info.get(pairing.team_b),
       seeds: [pairing.seed_a, pairing.seed_b], points: [pairing.score.a, pairing.score.b], tiebreaks: pairing.tiebreaks,
       winner: pairing.winner_team ? info.get(pairing.winner_team) : null, decidedBySeed: Boolean(pairing.decided_by_seed),
-      games: pairing.games.map((game) => ({ id: game.id, mapId: game.map_id, gameIndex: game.game_index, status: game.status, outcome: game.outcome, winner: game.winner, reason: game.reason, red: game.red }))
+      games: pairing.games.map(gameView)
     }));
+  }
+
+  const gameView = (game) => ({ id: game.id, mapId: game.map_id, gameIndex: game.game_index, status: game.status, outcome: game.outcome, winner: game.winner, reason: game.reason, red: game.red });
+
+  /** Qualifying pairings round by round (round robin: every round at once; Swiss: one more each step), with their games. */
+  async function qualifyingRounds() {
+    const format = await qualifyingFormat();
+    if (!format) return [];
+    const info = new Map((await entrants()).map((entrant) => [entrant.team_id, entrant.display_name]));
+    const byRound = new Map();
+    for (const pairing of await scoredPairings(format)) {
+      const finished = pairing.games.filter((game) => game.status === "finished").length;
+      byRound.set(pairing.round, [...(byRound.get(pairing.round) ?? []), {
+        teamA: pairing.team_a, teamB: pairing.team_b,
+        red: info.get(pairing.team_a) ?? null, blue: info.get(pairing.team_b) ?? null, bye: pairing.bye_team ? info.get(pairing.bye_team) : null,
+        points: pairing.bye_team ? null : [pairing.score.a, pairing.score.b],
+        played: finished, total: pairing.games.length,
+        games: pairing.games.map(gameView)
+      }]);
+    }
+    return [...byRound.entries()].sort(([x], [y]) => x - y).map(([round, pairings]) => ({
+      round,
+      mapId: format === "swiss" ? swissMap(round) : null,
+      pairings
+    }));
+  }
+
+  /**
+   * The knockout tree, drawn before it is played: every slot of every round, `null` until its pairing exists. The size is
+   * the bracket actually opened, else the one the qualifying table can fill, else the event's setting.
+   */
+  async function bracketView(ev, knockout) {
+    const opened = knockout.find((pairing) => pairing.round === 1)?.slot;
+    let size = opened ? { R16: 16, QF: 8, SF: 4 }[opened.replace(/-?\d+$/, "")] : 0;
+    if (!size) {
+      const ranked = (await qualifyingStandings()).rows.length;
+      size = ranked ? knockoutBracketSize(knockoutSizeOf(ev), ranked) : knockoutSizeOf(ev);
+    }
+    if (!size) return { size: 0, rounds: [] };
+    const bySlot = new Map(knockout.map((pairing) => [pairing.slot, pairing]));
+    const ROUNDS = [["R16", Array.from({ length: 8 }, (_, i) => `R16-${i + 1}`)], ["QF", ["QF1", "QF2", "QF3", "QF4"]], ["SF", ["SF1", "SF2"]], ["F", ["F", "3RD"]]];
+    const first = { 16: 0, 8: 1, 4: 2 }[size];
+    return { size, rounds: ROUNDS.slice(first).map(([name, slots]) => ({ name, slots: slots.map((slot) => ({ slot, pairing: bySlot.get(slot) ?? null })) })) };
   }
 
   /** What players and guests see (plan §8.8): no MSSV, emails or ids beyond public match ids. */
@@ -495,11 +555,14 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
     const ev = await event();
     const docs = await all("SELECT stage, sha256, published_at FROM stage_results WHERE event_id = ? ORDER BY published_at", eventId);
     const standings = await qualifyingStandings();
+    const knockout = (await knockoutView()).map(({ id, ...pairing }) => pairing);
     return {
       phase: ev.phase,
       documents: docs.map((doc) => ({ stage: doc.stage, sha256: doc.sha256, publishedAt: doc.published_at })),
       standings: { format: standings.format, rows: standings.rows.map(({ teamId, sealedAt, ...row }) => row) },
-      knockout: (await knockoutView()).map(({ id, ...pairing }) => pairing)
+      rounds: (await qualifyingRounds()).map((round) => ({ ...round, pairings: round.pairings.map(({ teamA, teamB, ...pairing }) => pairing) })),
+      knockout,
+      bracket: await bracketView(ev, knockout)
     };
   }
 
@@ -516,6 +579,7 @@ export function createTournament({ store, now, eventId, random = defaultRandom }
     planSwissNextRound: finalized(planSwissNextRound),
     planQualifyingClose: finalized(planQualifyingClose),
     planInterview: finalized(planInterview),
+    planInterviews: finalized(planInterviews),
     planKnockoutStart: finalized(planKnockoutStart),
     planKnockoutAdvance: finalized(planKnockoutAdvance),
     planFinishWithoutKnockout: finalized(planFinishWithoutKnockout),

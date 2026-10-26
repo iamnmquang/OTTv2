@@ -45,6 +45,7 @@ import {
   normalizeSource,
   practiceGames,
   practiceLeaderboard,
+  knockoutSizeOf,
   registrationOpen,
   submissionWindow,
   validateDisplayName,
@@ -230,6 +231,7 @@ export function createBotCupApi({ db, mailer, turnstile, now, config }) {
       practiceOpensAt: event.practiceOpensAt,
       codeFreezeAt: event.codeFreezeAt,
       finalsAt: event.finalsAt,
+      knockoutSize: knockoutSizeOf(event),
       eligibility: {
         mssvDigits: event.rules.mssvDigits,
         mssvPrefix: event.rules.mssvPrefix,

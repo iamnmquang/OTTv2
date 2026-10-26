@@ -104,6 +104,30 @@ describe("bot-cup tournament: knockout", () => {
     assert.deepEqual(sixteen.map((p) => `${p.highSeed}-${p.lowSeed}`), ["1-16", "8-9", "5-12", "4-13", "3-14", "6-11", "7-10", "2-15"]);
   });
 
+  it("plays the largest bracket (16, 8 or 4) that both the event and the seeded teams allow", () => {
+    const seeds = (n) => Array.from({ length: n }, (_, index) => `s${index + 1}`);
+    assert.deepEqual(t.knockoutFirstRound(seeds(10), 8).map((p) => `${p.slot}:${p.highSeed}-${p.lowSeed}`), ["QF1:1-8", "QF2:4-5", "QF3:3-6", "QF4:2-7"]);
+    assert.deepEqual(t.knockoutFirstRound(seeds(15), 16).map((p) => p.slot), ["QF1", "QF2", "QF3", "QF4"], "15 seeded teams cannot fill 16");
+    assert.equal(t.knockoutFirstRound(seeds(16), 16)[0].slot, "R16-1");
+    assert.deepEqual([t.knockoutBracketSize(16, 100), t.knockoutBracketSize(16, 9), t.knockoutBracketSize(8, 7), t.knockoutBracketSize(16, 3)], [16, 8, 4, 0]);
+    assert.equal(t.knockoutSizeOf({ mode: "demo", config: {} }), 4);
+    assert.equal(t.knockoutSizeOf({ mode: "production", config: {} }), 16);
+    assert.equal(t.knockoutSizeOf({ mode: "demo", config: { knockoutSize: 16 } }), 16);
+    assert.equal(t.knockoutSizeOf({ mode: "demo", config: { knockoutSize: 12 } }), 4, "only 4, 8 or 16");
+  });
+
+  it("interviews only the top 4 seeds of a bigger bracket; the rest go straight in", () => {
+    const ranking = Array.from({ length: 20 }, (_, index) => `t${index + 1}`);
+    const fresh = t.topAfterInterviews(ranking, {}, 16);
+    assert.deepEqual([fresh.ready, fresh.waitingFor, fresh.seeded.length], [false, ["t1", "t2", "t3", "t4"], 12]);
+    // t3 fails: t5 moves up into the interviewed four, t17 joins the bracket.
+    const state = t.topAfterInterviews(ranking, { t1: "pass", t2: "pass", t3: "fail", t4: "pass" }, 16);
+    assert.deepEqual([state.ready, state.waitingFor], [false, ["t5"]]);
+    const done = t.topAfterInterviews(ranking, { t1: "pass", t2: "pass", t3: "fail", t4: "pass", t5: "pass" }, 16);
+    assert.deepEqual([done.ready, done.seeded.length, done.seeded.includes("t3"), done.seeded.at(-1)], [true, 16, false, "t17"]);
+    assert.deepEqual(t.topAfterInterviews(ranking, {}, 16), t.topAfterInterviews(ranking, {}, 16, 4), "4 interviews by default");
+  });
+
   it("goes to tie-break games when level, at most twice, then the higher seed", () => {
     assert.deepEqual(t.knockoutDecision({ highPoints: 2.5, lowPoints: 3.5, tiebreaksPlayed: 0 }), { decided: true, winner: "low", bySeed: false });
     assert.deepEqual(t.knockoutDecision({ highPoints: 3, lowPoints: 3, tiebreaksPlayed: 0 }), { decided: false });

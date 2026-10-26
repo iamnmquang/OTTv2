@@ -120,6 +120,8 @@ button.on-blue, .menu-toggle {
 .login-card h2 { margin: 12px 0 4px; font-size: 1.25rem; }
 .login-card form { margin-top: 16px; max-width: none; text-align: left; }
 .login-card button[type="submit"] { width: 100%; padding: 8px; }
+.demo-accounts { display: grid; gap: 8px; margin-top: 16px; }
+.demo-accounts button { width: 100%; padding: 8px; }
 
 /* ---------- shell ---------- */
 

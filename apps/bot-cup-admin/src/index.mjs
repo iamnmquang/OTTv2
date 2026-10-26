@@ -3,7 +3,7 @@
  * on its own hostname, sharing the D1 database of apps/bot-cup-api.
  *
  * Bindings: DB (D1), ASSETS (static assets).
- * Vars:     BOT_CUP_EVENT_ID, ADMIN_AUTH_MODE ("access" default | "password"), ACCESS_TEAM_DOMAIN, ACCESS_AUD,
+ * Vars:     BOT_CUP_EVENT_ID, ADMIN_AUTH_MODE ("access" default | "password" | "demo": one-click sign-in, never production), ACCESS_TEAM_DOMAIN, ACCESS_AUD,
  *           ADMIN_ALLOWED_ORIGINS (comma-separated; defaults to the request's own origin).
  */
 import { createAdminApi } from "./app.mjs";
@@ -32,7 +32,7 @@ export default {
     if (!env.DB || !env.BOT_CUP_EVENT_ID) return misconfigured("missing DB or BOT_CUP_EVENT_ID");
     const authMode = env.ADMIN_AUTH_MODE || "access";
     if (authMode === "access" && (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD)) return misconfigured("access mode needs ACCESS_TEAM_DOMAIN and ACCESS_AUD");
-    if (!["access", "password"].includes(authMode)) return misconfigured("ADMIN_AUTH_MODE must be access or password");
+    if (!["access", "password", "demo"].includes(authMode)) return misconfigured("ADMIN_AUTH_MODE must be access, password or demo");
 
     const url = new URL(request.url);
     if (url.pathname.startsWith("/admin-api/")) {
