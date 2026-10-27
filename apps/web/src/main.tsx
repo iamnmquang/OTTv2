@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./runtime-config";
 import { App } from "./app/App";
+import { DemoNav } from "./shared/demo-nav/DemoNav";
 import "./shared/theme/reset.css";
 import "./shared/theme/tokens.css";
 import "./shared/theme/global.css";
@@ -20,5 +21,6 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <App />
+    <DemoNav />
   </StrictMode>,
 );

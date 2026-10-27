@@ -51,6 +51,14 @@ describe("ProjectorScreen", () => {
     expect(screen.getAllByRole("button", { name: /^Ô /i })).toHaveLength(81);
   });
 
+  it("marks <body> while open so the demo page switcher hides its button", async () => {
+    const { unmount } = render(<ProjectorScreen gateway={gatewayWith()} onExit={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Bán kết 1" });
+    expect(document.body).toHaveAttribute("data-ott-projector");
+    unmount();
+    expect(document.body).not.toHaveAttribute("data-ott-projector");
+  });
+
   it("lets the MC change game, pairing and speed from the keyboard", async () => {
     const gateway = gatewayWith();
     render(<ProjectorScreen gateway={gateway} onExit={vi.fn()} />);
