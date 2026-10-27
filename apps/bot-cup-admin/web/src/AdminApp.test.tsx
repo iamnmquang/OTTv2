@@ -3,9 +3,9 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AdminApi } from "./api";
+import { AdminApi, AdminApiError } from "./api";
 import { AdminApp } from "./AdminApp";
-import { nextStep } from "./autoRun";
+import { nextStep, runAuto, type StepOutcome } from "./autoRun";
 import type { TournamentAdminView } from "./types";
 
 type Handler = (body: Record<string, unknown> | undefined) => { status?: number; json?: unknown; text?: string };
@@ -152,11 +152,55 @@ describe("auto run", () => {
       "GET /tournament": { ...TOURNAMENT, phase: "knockout" },
       "POST /tournament/knockout-advance": () => ({ status: 409, json: { error: "games_pending", pending: 4 } }),
     });
-    expect(await nextStep(pending.api)).toEqual({ kind: "wait", code: "games_pending" });
+    expect(await nextStep(pending.api)).toEqual({ kind: "wait", code: "games_pending", pending: 4 });
     const done = fakeApi({ "GET /tournament": { ...TOURNAMENT, phase: "finished" } });
     expect(await nextStep(done.api)).toEqual({ kind: "finished" });
     const broken = fakeApi({ "GET /tournament": { ...TOURNAMENT, phase: "frozen" }, "POST /tournament/gate-start": () => ({ status: 403, json: { error: "read_only" } }) });
     await expect(nextStep(broken.api)).rejects.toThrow("read_only");
     await act(async () => undefined);
+  });
+});
+
+describe("auto-run loop", () => {
+  /** Steps answered from a script: an outcome, or an error to throw. */
+  function scripted(script: Array<StepOutcome | Error>) {
+    const statuses: Array<string | null> = [];
+    const outcomes: StepOutcome[] = [];
+    const sleeps: number[] = [];
+    const run = () => runAuto({
+      step: async () => {
+        const next = script.shift();
+        if (!next) throw new Error("script ran out");
+        if (next instanceof Error) throw next;
+        return next;
+      },
+      live: () => true,
+      sleep: async (ms) => { sleeps.push(ms); },
+      onStep: (outcome) => outcomes.push(outcome),
+      onStatus: (text) => statuses.push(text),
+      waitMs: 5000,
+      retryDelays: [10, 20, 30],
+    });
+    return { run, statuses, outcomes, sleeps };
+  }
+  const serverError = () => new AdminApiError(500, "internal_error", null);
+  const done = (step: string): StepOutcome => ({ kind: "done", step, summary: { games: 1 } });
+
+  it("waits on pending games and retries a transient failure instead of stopping", async () => {
+    const loop = scripted([done("freeze"), { kind: "wait", code: "games_pending", pending: 27 }, serverError(), new TypeError("Failed to fetch"), done("gate-close"), { kind: "finished" }]);
+    await loop.run();
+    expect(loop.outcomes.map((outcome) => outcome.kind)).toEqual(["done", "wait", "done", "finished"]);
+    expect(loop.sleeps).toEqual([5000, 10, 20]);
+    expect(loop.statuses).toContain("Đang chờ chấm xong 27 ván.");
+    expect(loop.statuses).toContain("Máy chủ lỗi tạm thời, thử lại sau vài giây. Thử lại 1/3…");
+  });
+
+  it("stops on a refusal at once, and after too many failures in a row", async () => {
+    const refused = scripted([new AdminApiError(403, "read_only", null)]);
+    await expect(refused.run()).rejects.toThrow("read_only");
+    expect(refused.sleeps).toEqual([]);
+    const broken = scripted([serverError(), serverError(), serverError(), serverError()]);
+    await expect(broken.run()).rejects.toThrow("internal_error");
+    expect(broken.sleeps).toEqual([10, 20, 30]);
   });
 });

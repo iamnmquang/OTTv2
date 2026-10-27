@@ -271,6 +271,10 @@ describe("bot-cup admin: day-to-day work", () => {
     const rerun = await t.admin("POST", `/matches/${game.id}/rerun`, { as, json: { reason: "runner nghi vấn" } });
     assert.equal(t.h.db.sqlite.prepare("SELECT status FROM matches WHERE id = ?").get(game.id).status, "cancelled");
     assert.equal(t.h.db.sqlite.prepare("SELECT status FROM matches WHERE id = ?").get(rerun.body.newMatchId).status, "queued");
+    // A game on a runner cannot be cancelled, so it is not rerun either.
+    t.h.db.sqlite.prepare("UPDATE matches SET status = 'running' WHERE id = ?").run(rerun.body.newMatchId);
+    const busy = await t.admin("POST", `/matches/${rerun.body.newMatchId}/rerun`, { as, json: { reason: "chạy lại lần nữa" } });
+    assert.deepEqual([busy.status, busy.body.error], [409, "match_running"]);
 
     const template = require("node:fs").readFileSync(require("node:path").join(__dirname, "../sdk/bot-cup/python/bot.py"), "utf8");
     await t.h.upload(t.h.team(), template);

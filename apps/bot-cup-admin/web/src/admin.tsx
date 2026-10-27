@@ -44,7 +44,7 @@ export interface AdminContextValue {
   readonly notify: (message: string, tone?: "info" | "success" | "warning" | "error") => void;
   readonly signedOut: () => void;
   /** Demo mode only: presses the next tournament step whenever the server allows it. */
-  readonly autoRun: { readonly available: boolean; readonly running: boolean; readonly error: string | null; readonly start: () => void; readonly stop: () => void };
+  readonly autoRun: { readonly available: boolean; readonly running: boolean; readonly error: string | null; readonly status: string | null; readonly start: () => void; readonly stop: () => void };
 }
 
 export const AdminContext = createContext<AdminContextValue | null>(null);

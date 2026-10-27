@@ -38,6 +38,8 @@ const REASON_MAX = 500;
 const FLAG_EXPLAIN_MS = 48 * 60 * 60 * 1000;
 // Demo mode signs in with one click; an empty admins table gets two accounts so four-eyes actions can still be shown.
 const DEMO_ADMINS = Object.freeze(["btc1@demo.local", "btc2@demo.local"]);
+// The published document (stage_results.stage) that carries the result of a game of each match stage.
+const DOCUMENT_OF_STAGE = Object.freeze({ gate: "gate", round_robin: "qualifying", swiss: "qualifying", knockout: "final" });
 
 export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
   const store = createStore(db);
@@ -284,6 +286,7 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
     const reason = reasonOf(body);
     const match = await first("SELECT * FROM matches WHERE id = ? AND event_id = ?", id, config.eventId);
     if (!match) throw new HttpError(404, "not_found");
+    await requireUnpublished(match);
     const outcome = body.outcome;
     const winner = outcome === "draw" ? null : body.winner;
     if (!["win", "draw", "forfeit"].includes(outcome) || (outcome !== "draw" && !["A", "B"].includes(winner))) throw new HttpError(400, "invalid_request", { field: "outcome" });
@@ -320,6 +323,11 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
     // Four eyes: the admin who asked cannot be the one who approves (also a CHECK in the table).
     if (pending.requested_by === admin.email) throw new HttpError(403, "same_admin");
     const payload = JSON.parse(pending.payload_json);
+    // Asked before the stage was published, approved after: still refused, the document is already out.
+    if (approve && pending.action === "match.set_result") {
+      const match = await first("SELECT stage FROM matches WHERE id = ?", payload.matchId);
+      if (match) await requireUnpublished(match);
+    }
     const statements = [store.statement(
       "UPDATE pending_actions SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'",
       approve ? "approved" : "rejected", admin.email, now(), id
@@ -461,7 +469,21 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
     return json({ ok: true });
   }
 
+  async function publishedDocuments() {
+    return new Set((await all("SELECT stage FROM stage_results WHERE event_id = ?", config.eventId)).map((row) => row.stage));
+  }
+
+  /**
+   * A published document is immutable (trigger stage_results_keep), so the games behind it must not change either:
+   * otherwise the live bracket and the document the public can verify would disagree.
+   */
+  async function requireUnpublished(match) {
+    const document = DOCUMENT_OF_STAGE[match.stage];
+    if (document && (await publishedDocuments()).has(document)) throw new HttpError(409, "stage_published", { stage: document });
+  }
+
   async function listMatches(url) {
+    const published = await publishedDocuments();
     const stage = url.searchParams.get("stage");
     const status = url.searchParams.get("status");
     const matches = await all(
@@ -478,6 +500,7 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
     return json({
       matches: matches.map((match) => ({
         ...match,
+        published: published.has(DOCUMENT_OF_STAGE[match.stage]),
         a_name: match.a_house ? HOUSE_BOT_LABELS[match.a_house] ?? match.a_house : `${match.a_team} (v${match.a_seq})`,
         b_name: match.b_house ? HOUSE_BOT_LABELS[match.b_house] ?? match.b_house : `${match.b_team} (v${match.b_seq})`
       }))
@@ -491,6 +514,9 @@ export function createAdminApi({ db, now, config, fetchImpl = fetch }) {
     const reason = reasonOf(body);
     const match = await first("SELECT * FROM matches WHERE id = ? AND event_id = ?", id, config.eventId);
     if (!match) throw new HttpError(404, "not_found");
+    await requireUnpublished(match);
+    // A running game cannot be cancelled here, so a rerun would leave two games in the same place.
+    if (match.status === "running") throw new HttpError(409, "match_running");
     const game = enqueueMatch(store, {
       eventId: config.eventId, stage: match.stage, round: match.round, pairingId: match.pairing_id, gameIndex: match.game_index, mapId: match.map_id,
       a: match.a_submission_id ? { submissionId: match.a_submission_id } : { house: match.a_house },

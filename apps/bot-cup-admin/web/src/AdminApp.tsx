@@ -115,8 +115,8 @@ export function AdminApp({ api }: { readonly api: AdminApi }) {
     api, me: auth.me, writer: auth.me.role === "admin", overview: overview?.data ?? null, version, refresh, show, notify,
     act: setAction,
     signedOut: () => setAuth({ status: "signed-out", notice: "Phiên đăng nhập đã hết, hãy đăng nhập lại." }),
-    autoRun: { available: auth.me.authMode === "demo" && auth.me.role === "admin", running: auto.running, error: auto.error, start: () => void auto.start(), stop: auto.stop },
-  }, [api, auth, overview, version, refresh, show, notify, auto.running, auto.error, auto.start, auto.stop]);
+    autoRun: { available: auth.me.authMode === "demo" && auth.me.role === "admin", running: auto.running, error: auto.error, status: auto.status, start: () => void auto.start(), stop: auto.stop },
+  }, [api, auth, overview, version, refresh, show, notify, auto.running, auto.error, auto.status, auto.start, auto.stop]);
 
   const confirm = async (body: Record<string, unknown>) => {
     if (!action) return;

@@ -12,6 +12,7 @@ import { botCupErrorMessage } from "./botCupMessages";
 import { MAP_LABELS, reasonLabel } from "./matchFormat";
 import { KnockoutTree } from "./bracket/KnockoutTree";
 import { slotLabel } from "./bracket/bracketFormat";
+import { TOURNAMENT_REFRESH_MS } from "./TournamentPanel";
 import { PROJECTOR_BODY_ATTRIBUTE } from "../../shared/demo-nav/DemoNav";
 import styles from "./projector.module.css";
 
@@ -38,7 +39,8 @@ function gameResult(pairing: KnockoutPairing, game: KnockoutGame): string {
 export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupApiGateway; readonly onExit: () => void }) {
   const [view, setView] = useState<TournamentView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pairingIndex, setPairingIndex] = useState<number | null>(null);
+  // The shown pairing by slot ("SF1", "F"…), so a refresh that adds a round keeps the same pairing on screen.
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [gameIndex, setGameIndex] = useState(0);
   const [session, setSession] = useState<ReplaySession | null>(null);
   const [playback, setPlayback] = useState<ReplayPlaybackView>(INITIAL_PLAYBACK_VIEW);
@@ -61,18 +63,22 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
     }
   }, [gateway]);
 
+  // Same refresh as the public results page, so a projector opened early picks up new rounds without R.
   useEffect(() => {
     void load();
+    const timer = window.setInterval(() => void load(), TOURNAMENT_REFRESH_MS);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   const pairings = useMemo(() => view?.knockout.filter((pairing) => pairing.games.length > 0) ?? [], [view]);
-  // Start on the latest round's first pairing that still has games to show.
+  // Start on the final once it exists, otherwise on the latest round's first pairing that has games to show.
   useEffect(() => {
-    if (pairingIndex !== null || pairings.length === 0) return;
+    if (selectedSlot !== null || pairings.length === 0) return;
     const lastRound = Math.max(...pairings.map((pairing) => pairing.round));
-    setPairingIndex(pairings.findIndex((pairing) => pairing.round === lastRound));
-  }, [pairings, pairingIndex]);
-  const pairing = pairingIndex !== null ? pairings[pairingIndex] ?? null : null;
+    setSelectedSlot((pairings.find((pairing) => pairing.slot === "F") ?? pairings.find((pairing) => pairing.round === lastRound))?.slot ?? null);
+  }, [pairings, selectedSlot]);
+  const pairingIndex = pairings.findIndex((pairing) => pairing.slot === selectedSlot);
+  const pairing = pairingIndex >= 0 ? pairings[pairingIndex] : null;
   const game = pairing?.games[gameIndex] ?? null;
 
   // One replay session per shown game; the previous one is disposed.
@@ -132,9 +138,9 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
 
   const movePairing = useCallback((direction: 1 | -1) => {
     if (pairings.length === 0) return;
-    setPairingIndex((current) => ((current ?? 0) + direction + pairings.length) % pairings.length);
+    setSelectedSlot(pairings[(Math.max(pairingIndex, 0) + direction + pairings.length) % pairings.length].slot);
     setGameIndex(0);
-  }, [pairings.length]);
+  }, [pairings, pairingIndex]);
 
   useReplayShortcuts({
     enabled: session !== null,
@@ -192,9 +198,8 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
       {showBracket && view ? (
         <div className={styles.bracket}>
           <KnockoutTree bracket={view.bracket} large selected={pairing?.slot ?? null} onSelect={(slot) => {
-            const index = pairings.findIndex((item) => item.slot === slot);
-            if (index >= 0) {
-              setPairingIndex(index);
+            if (pairings.some((item) => item.slot === slot)) {
+              setSelectedSlot(slot);
               setGameIndex(0);
             }
             setShowBracket(false);

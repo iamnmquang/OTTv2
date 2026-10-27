@@ -30,10 +30,13 @@ export function Bracket() {
   const [selected, setSelected] = useState<string | null>(null);
   const publicUrl = (screen: string) => (me.publicWebOrigin ? `${me.publicWebOrigin.replace(/\/$/, "")}/?view=bot-cup&screen=${screen}` : null);
 
-  const gameActions = (game: KnockoutGame) => (
+  // Games behind a published document cannot be rerun (the API answers stage_published).
+  const gameActions = (published: boolean) => (game: KnockoutGame) => (
     <span className={styles.gameAdmin}>
       <Tag status={game.status === "finished" ? "success" : game.status === "failed" ? "danger" : "neutral"}>{STATUS[game.status] ?? game.status}</Tag>
-      <ActButton variant="quiet" label="Chạy lại" spec={{ title: "Chạy lại ván", path: `/matches/${game.id}/rerun`, description: `Ván ${game.gameIndex + 1} (${game.id}): kết quả cũ bị huỷ, ván được xếp lại hàng đợi.` }} />
+      {published
+        ? <span className={styles.muted}>Đã công bố</span>
+        : <ActButton variant="quiet" label="Chạy lại" spec={{ title: "Chạy lại ván", path: `/matches/${game.id}/rerun`, description: `Ván ${game.gameIndex + 1} (${game.id}): kết quả cũ bị huỷ, ván được xếp lại hàng đợi.` }} />}
     </span>
   );
 
@@ -41,6 +44,7 @@ export function Bracket() {
     <Loaded load={load}>
       {(data) => {
         const stats = progress(data);
+        const published = new Set(data.documents.map((document) => document.stage));
         const pick = data.bracket.rounds.flatMap((round) => round.slots).find((slot) => slot.slot === selected)?.pairing ?? null;
         const links = (
           <>
@@ -79,14 +83,14 @@ export function Bracket() {
                       {pick.winner ? `${pick.winner} đi tiếp${pick.decidedBySeed ? " (hạt giống cao hơn)" : ""}.` : "Chưa phân thắng thua."}
                       {pick.tiebreaks ? ` ${pick.tiebreaks} lượt tie-break.` : ""}
                     </p>
-                    <PairingGames red={pick.red} blue={pick.blue} games={pick.games} actions={gameActions} />
+                    <PairingGames red={pick.red} blue={pick.blue} games={pick.games} actions={gameActions(published.has("final"))} />
                   </div>
                 ) : data.knockout.length ? <p className={styles.muted}>Chọn một cặp để xem từng ván, trạng thái và chạy lại.</p> : null}
               </Section>
             ) : (
               <Section title={`Vòng loại · ${data.standings.format === "round_robin" ? "vòng tròn" : data.standings.format === "swiss" ? "Swiss" : "chưa bắt đầu"}`}>
                 {data.standings.format
-                  ? <SwissRounds rounds={data.rounds} format={data.standings.format} gameActions={gameActions} />
+                  ? <SwissRounds rounds={data.rounds} format={data.standings.format} gameActions={gameActions(published.has("qualifying"))} />
                   : <p className={styles.muted}>Vòng loại chưa bắt đầu.</p>}
               </Section>
             )}

@@ -33,7 +33,8 @@ Mỗi bước chỉ chạy khi giai đoạn đúng và mọi ván của bước 
 
 ## 3. Trình chiếu ở hội trường
 
-Mở `https://<web>/?view=bot-cup&screen=projector` trên máy nối máy chiếu, bấm *Toàn màn hình*.
+Mở `https://<web>/?view=bot-cup&screen=projector` trên máy nối máy chiếu, bấm *Toàn màn hình*. Màn hình mở vào Chung kết
+nếu đã có, và tự tải lại dữ liệu mỗi 15 giây (vòng mới hiện ra không cần R; cặp đang chiếu được giữ nguyên).
 
 | Phím | Tác dụng |
 |---|---|
@@ -54,7 +55,7 @@ Ván chỉ phát được khi runner đã chấm xong; replay do API dựng lạ
 | Máy runner tắt giữa vòng | Tab *Runner & job*: runner **offline**, job “đang chạy” không đổi | Không cần làm gì với job: lease hết hạn sau 5 phút thì job quay lại hàng đợi. Bật lại runner, hoặc tạo token cho máy thứ hai và chạy runner ở đó. Trễ lịch thì đăng thông báo (tab *Thông báo*) |
 | Job lỗi hạ tầng 3 lần | Tab *Runner & job* → *Job lỗi* | Đọc “Lỗi cuối”; sửa nguyên nhân (Docker, mạng, thiếu bộ thế cờ trên máy) rồi *Đưa lại hàng đợi* |
 | Runner bị đánh dấu nghi vấn | Cột *Nghi vấn* (replay bị Worker từ chối khi chơi lại bằng luật thật) | Dừng runner đó, kiểm tra image/mã runner; *Thu hồi* token nếu nghi bị sửa; *Bỏ nghi vấn* khi đã rõ |
-| Một ván bị chấm sai do hạ tầng | Replay cho thấy lỗi không do bot | Tab *Trận* → *Chạy lại* (ván cũ bị hủy, ván mới cùng cặp/bản đồ/màu) |
+| Một ván bị chấm sai do hạ tầng | Replay cho thấy lỗi không do bot | Tab *Trận* → *Chạy lại* (ván cũ bị hủy, ván mới cùng cặp/bản đồ/màu). Chỉ làm được **trước** khi chốt giai đoạn đó: khi tài liệu của giai đoạn đã công bố, *Chạy lại* và *Sửa kết quả* bị từ chối (`stage_published`), vì tài liệu không sửa được |
 | Chấm sai hàng loạt | Nhiều ván cùng lỗi | Dừng runner; sửa; *Chạy lại* từng ván bị ảnh hưởng (chưa có nút chạy lại cả vòng); đăng thông báo |
 | Email không tới | Đội báo không nhận OTP | Tab *Đội* → xác minh thủ công thành viên theo danh sách MSSV (có audit) |
 | Bot nghi thoát sandbox | Log runner/Docker bất thường | Dừng runner (Ctrl+C), *Thu hồi* token, ngắt mạng máy đó, giữ log; đề nghị loại đội; chạy lại `npm run test:arena:isolation` trước khi dùng lại máy |

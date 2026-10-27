@@ -79,6 +79,8 @@ function TournamentView({ data, query, setQuery, stepSpec, openBracket, autoRun,
             <div>
               <strong>Tự chạy tới hết (chỉ bản demo)</strong>
               <p className={styles.muted}>Bấm bước kế tiếp mỗi khi máy chủ cho phép, cho 4 hạt giống đầu đạt phỏng vấn. Mỗi bước vẫn ghi audit với lý do “Demo: điều phối tự động”. Cần runner đang chạy.</p>
+              {autoRun.running && autoRun.status ? <p role="status">{autoRun.status}</p> : null}
+              {!autoRun.running && autoRun.error ? <p role="alert">Đã dừng: {autoRun.error} Bấm “Tự chạy tới hết” để chạy tiếp.</p> : null}
             </div>
             {autoRun.running
               ? <Button variant="danger" onClick={autoRun.stop}>Dừng tự chạy</Button>

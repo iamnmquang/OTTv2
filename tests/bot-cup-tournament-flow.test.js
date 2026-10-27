@@ -37,9 +37,9 @@ describe("bot-cup tournament flow (Demo)", () => {
       sqlite.prepare("INSERT INTO admin_sessions (id_hash, email, created_at, expires_at) VALUES (?, ?, 0, ?)").run(crypto.createHash("sha256").update(token).digest("hex"), email, START * 10);
       return `__Host-ottcup_admin=${token}`;
     };
-    const cookieA = session("a@btc.test");
-    async function btc(method, path, json) {
-      const init = { method, headers: { cookie: cookieA } };
+    const cookies = { a: session("a@btc.test"), b: session("b@btc.test") };
+    async function btc(method, path, json, as = "a") {
+      const init = { method, headers: { cookie: cookies[as] } };
       if (json !== undefined) {
         init.headers.origin = ADMIN_ORIGIN;
         init.headers["content-type"] = "application/json";
@@ -130,6 +130,14 @@ describe("bot-cup tournament flow (Demo)", () => {
     assert.deepEqual([gate.qualified, gate.format], [5, "round_robin"]);
     const view = (await btc("GET", "/tournament")).body;
     assert.deepEqual(view.entrants.filter((e) => e.gateStatus === "not_qualified").map((e) => e.team).sort(), ["Đội weak-1", "Đội weak-2"]);
+    // The gate document is out: its games can no longer be rerun or changed.
+    const gameOf = (stage) => sqlite.prepare("SELECT id, winner FROM matches WHERE stage = ? AND status = 'finished' LIMIT 1").get(stage);
+    const gateGame = gameOf("gate");
+    const gateRerun = await btc("POST", `/matches/${gateGame.id}/rerun`, { reason: "chạy lại sau công bố" });
+    assert.deepEqual([gateRerun.status, gateRerun.body.error], [409, "stage_published"]);
+    const gateResult = await btc("POST", `/matches/${gateGame.id}/result`, { outcome: "win", winner: gateGame.winner === "A" ? "B" : "A", reason: "sửa sau công bố" });
+    assert.deepEqual([gateResult.status, gateResult.body.error], [409, "stage_published"]);
+    assert.equal((await btc("GET", "/matches?stage=gate")).body.matches.every((match) => match.published), true);
 
     // ---- round robin ----
     const rr = await stepOk("qualifying-start");
@@ -142,6 +150,12 @@ describe("bot-cup tournament flow (Demo)", () => {
       [1, "Đội s1", 24], [2, "Đội s2", 18], [3, "Đội s3", 12], [4, "Đội s4", 6], [5, "Đội s5", 0]
     ]);
     assert.doesNotMatch(JSON.stringify(live), /team-\d|2602/, "no ids or MSSV in the public view");
+    // Before the qualifying document is published a game can still be rerun; the same seat loses again.
+    const rrGame = gameOf("round_robin");
+    assert.equal((await btc("GET", "/matches?stage=round_robin")).body.matches.some((match) => match.published), false);
+    assert.equal((await btc("POST", `/matches/${rrGame.id}/rerun`, { reason: "lỗi máy chấm" })).status, 200);
+    assert.equal((await btc("POST", "/tournament/qualifying-close", { reason: "còn ván chạy lại" })).body.error, "games_pending");
+    await drain();
     await stepOk("qualifying-close");
 
     // ---- appeals ----
@@ -173,8 +187,17 @@ describe("bot-cup tournament flow (Demo)", () => {
     const advance2 = await stepOk("knockout-advance");
     assert.deepEqual(advance2.pairings, ["F", "3RD"]);
     await drain();
+    // Asked before the final document, approved after it: refused, the document is already public.
+    const finalGame = gameOf("knockout");
+    const asked = await btc("POST", `/matches/${finalGame.id}/result`, { outcome: "win", winner: finalGame.winner === "A" ? "B" : "A", reason: "khiếu nại" });
+    assert.equal(asked.status, 202, JSON.stringify(asked.body));
     const finished = await stepOk("knockout-advance");
     assert.equal(finished.finished, true);
+    const approved = await btc("POST", `/pending/${asked.body.pendingId}/approve`, { reason: "đồng ý" }, "b");
+    assert.deepEqual([approved.status, approved.body.error], [409, "stage_published"]);
+    assert.equal(sqlite.prepare("SELECT winner FROM matches WHERE id = ?").get(finalGame.id).winner, finalGame.winner);
+    const koRerun = await btc("POST", `/matches/${finalGame.id}/rerun`, { reason: "chạy lại sau chung kết" });
+    assert.deepEqual([koRerun.status, koRerun.body.error], [409, "stage_published"]);
 
     const final = await h.call("GET", "/api/t/results/final");
     assert.equal(final.headers.get("x-sha256"), crypto.createHash("sha256").update(JSON.stringify(final.body, null, 2)).digest("hex"));
