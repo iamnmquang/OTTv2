@@ -33,6 +33,9 @@ export const ERRORS: Readonly<Record<string, string>> = {
   not_an_admin: "Tài khoản này không phải BTC.",
   invalid_request: "Dữ liệu gửi lên không hợp lệ.",
   not_found: "Không tìm thấy.",
+  stage_published: "Kết quả giai đoạn này đã công bố: không chạy lại hay sửa ván được nữa.",
+  match_running: "Ván đang chạy trên runner: chờ ván xong rồi mới chạy lại.",
+  internal_error: "Máy chủ lỗi tạm thời, thử lại sau vài giây.",
 };
 
 export function errorText(error: unknown): string {

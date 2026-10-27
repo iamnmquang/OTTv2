@@ -92,6 +92,29 @@ describe("ProjectorScreen", () => {
     expect(await screen.findByText("Ván này chưa đấu xong.")).toBeInTheDocument();
   });
 
+  it("opens on the final rather than the third-place match", async () => {
+    const finals = [pairing("F", "Đội An", "Đội Bình", 2), pairing("3RD", "Đội Chi", "Đội Dũng", 2)];
+    const ended = { ...view, knockout: [...semiFinals, finals[1], finals[0]] };
+    const gateway = gatewayWith({ getTournament: vi.fn().mockResolvedValue(ended) });
+    render(<ProjectorScreen gateway={gateway} onExit={vi.fn()} />);
+    expect(await screen.findByRole("heading", { name: "Chung kết" })).toBeInTheDocument();
+    expect(gateway.getMatchReplay).toHaveBeenCalledWith("F-0");
+  });
+
+  it("picks up the knockout by itself when opened before it started", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const getTournament = vi.fn().mockResolvedValueOnce({ ...view, knockout: [] }).mockResolvedValue(view);
+      render(<ProjectorScreen gateway={gatewayWith({ getTournament })} onExit={vi.fn()} />);
+      expect(await screen.findByText(/chưa có ván loại trực tiếp/)).toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+      expect(await screen.findByRole("heading", { name: "Bán kết 1" })).toBeInTheDocument();
+      expect(getTournament).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("says so when there is no knockout yet, and refuses a replay that is not valid", async () => {
     const empty = gatewayWith({ getTournament: vi.fn().mockResolvedValue({ ...view, knockout: [] }) });
     render(<ProjectorScreen gateway={empty} onExit={vi.fn()} />);

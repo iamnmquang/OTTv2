@@ -6,6 +6,7 @@ import styles from "../admin.module.css";
 interface MatchRow {
   readonly id: string; readonly stage: string; readonly round: number | null; readonly map_id: string; readonly a_name: string | null; readonly b_name: string | null;
   readonly status: string; readonly outcome: string | null; readonly winner: string | null; readonly reason: string | null; readonly plies: number | null;
+  readonly published: boolean;
 }
 
 const STATUS: Readonly<Record<string, string>> = { queued: "chờ", running: "đang chạy", finished: "xong", failed: "lỗi", cancelled: "huỷ" };
@@ -28,7 +29,7 @@ export function Matches() {
                 key: match.id,
                 cells: [match.stage, match.round ?? "—", match.map_id, match.a_name ?? "—", match.b_name ?? "—", STATUS[match.status] ?? match.status,
                   match.outcome ? `${match.outcome} ${match.winner ?? ""} · ${match.reason ?? ""} · ${match.plies ?? 0} nước` : "—",
-                  <div className={styles.actions} key="a">
+                  match.published ? <span className={styles.muted} key="a">Đã công bố</span> : <div className={styles.actions} key="a">
                     <ActButton variant="quiet" label="Chạy lại" spec={{ title: "Chạy lại trận", path: `/matches/${match.id}/rerun`, description: `${match.a_name} – ${match.b_name} (${match.id})` }} />
                     <ActButton variant="quiet" label="Sửa kết quả" spec={{
                       title: "Sửa kết quả (cần admin thứ hai duyệt)", path: `/matches/${match.id}/result`, danger: true,
