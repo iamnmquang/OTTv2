@@ -12,6 +12,7 @@ import { botCupErrorMessage } from "./botCupMessages";
 import { MAP_LABELS, reasonLabel } from "./matchFormat";
 import { KnockoutTree } from "./bracket/KnockoutTree";
 import { slotLabel } from "./bracket/bracketFormat";
+import { PROJECTOR_BODY_ATTRIBUTE } from "../../shared/demo-nav/DemoNav";
 import styles from "./projector.module.css";
 
 const SPEEDS: readonly ReplaySpeed[] = [0.5, 1, 2, 4];
@@ -44,6 +45,12 @@ export function ProjectorScreen({ gateway, onExit }: { readonly gateway: BotCupA
   const [loading, setLoading] = useState(false);
   const [showBracket, setShowBracket] = useState(false);
   const snapshot = useSessionSnapshot(session);
+
+  // The demo page switcher hides its floating button on the projector.
+  useEffect(() => {
+    document.body.setAttribute(PROJECTOR_BODY_ATTRIBUTE, "");
+    return () => document.body.removeAttribute(PROJECTOR_BODY_ATTRIBUTE);
+  }, []);
 
   const load = useCallback(async () => {
     try {

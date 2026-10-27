@@ -1,0 +1,114 @@
+.fab {
+  position: fixed;
+  right: var(--ui-space-4);
+  bottom: var(--ui-space-4);
+  z-index: var(--ui-z-toast);
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 2px solid var(--ui-glass-border-strong);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  font-size: var(--ui-text-lg);
+  box-shadow: var(--ui-shadow-panel);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--ui-motion-fast) var(--ui-ease-standard);
+}
+
+.fab:hover,
+.fab:focus-visible {
+  opacity: 1;
+}
+
+.fab:focus-visible {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+
+:global(body[data-ott-projector]) .fab {
+  display: none;
+}
+
+.dialog {
+  width: min(100%, 30rem);
+}
+
+.groups {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.group {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+
+.groupTitle {
+  margin: 0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+
+.list {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 2px solid var(--ui-line);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-0);
+  color: var(--ui-text);
+  text-decoration: none;
+}
+
+.link:hover {
+  border-color: var(--ui-glass-border-strong);
+}
+
+.link:focus-visible {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+
+.link[aria-current="page"] {
+  border-color: var(--ui-glass-border-strong);
+  background: var(--ui-surface-2);
+}
+
+.label {
+  font-weight: 700;
+}
+
+.hint,
+.here {
+  font-size: var(--ui-text-xs);
+  color: var(--ui-text-muted);
+  text-align: right;
+}
+
+.here {
+  color: var(--ui-legal);
+  font-weight: 700;
+}
+
+.footer {
+  margin: var(--ui-space-4) 0 0;
+  font-size: var(--ui-text-xs);
+  color: var(--ui-text-muted);
+}
