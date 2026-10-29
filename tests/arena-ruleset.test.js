@@ -117,17 +117,43 @@ describe("ruleset snapshot & canonical identity", () => {
   });
 
   it("rejects unsupported board shapes in structural validator", () => {
-    const badShape1 = createCurrentRulesetSnapshot(coreConfig);
-    badShape1.boardWidth = 11;
-    badShape1.boardHeight = 11;
-    badShape1.files = "abcdefghijk";
-    const res1 = validateRulesetSnapshot(badShape1);
+    // Size outside the supported range (9..25), even when the files string is consistent
+    const tooBig = createCurrentRulesetSnapshot(coreConfig);
+    tooBig.boardWidth = 26;
+    tooBig.boardHeight = 26;
+    tooBig.files = "abcdefghijklmnopqrstuvwxyz";
+    const res1 = validateRulesetSnapshot(tooBig);
     assert.equal(res1.ok, false);
     assert.ok(res1.errors.some((e) => e.code === "unsupported_board_dimensions"));
 
-    const badShape2 = createCurrentRulesetSnapshot(coreConfig);
-    badShape2.boardWidth = 7;
-    assert.equal(validateRulesetSnapshot(badShape2).ok, false);
+    // Smaller than the original board
+    const tooSmall = createCurrentRulesetSnapshot(coreConfig);
+    tooSmall.boardWidth = 7;
+    tooSmall.boardHeight = 7;
+    tooSmall.files = "abcdefg";
+    assert.equal(validateRulesetSnapshot(tooSmall).ok, false);
+
+    // Not square
+    const notSquare = createCurrentRulesetSnapshot(coreConfig);
+    notSquare.boardWidth = 11;
+    const res3 = validateRulesetSnapshot(notSquare);
+    assert.equal(res3.ok, false);
+    assert.ok(res3.errors.some((e) => e.code === "unsupported_board_dimensions"));
+
+    // files must match the size
+    const badFiles = createCurrentRulesetSnapshot(coreConfig);
+    badFiles.boardWidth = 11;
+    badFiles.boardHeight = 11;
+    const res4 = validateRulesetSnapshot(badFiles);
+    assert.equal(res4.ok, false);
+    assert.ok(res4.errors.some((e) => e.code === "unsupported_files"));
+
+    // An 11x11 snapshot that still carries 9x9 goals/setup is structurally fine but is not a supported engine ruleset
+    const mixed = createCurrentRulesetSnapshot(coreConfig);
+    mixed.boardWidth = 11;
+    mixed.boardHeight = 11;
+    mixed.files = "abcdefghijk";
+    assert.equal(isSupportedEngineRuleset(mixed), false);
   });
 
   it("strictly rejects modified G semantics in isSupportedEngineRuleset", () => {

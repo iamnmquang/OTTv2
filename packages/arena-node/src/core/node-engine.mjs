@@ -56,4 +56,15 @@ export function createNodeEngine({ rules = defaultRules, config = defaultConfig 
   };
 }
 
+/**
+ * EnginePort for the a x a board (a = 9 is the original game). Same rules, goals in opposite corners,
+ * each seat's formation anchored to its own corner (see packages/game-core/src/config.js `createConfig`).
+ * @param {number} size integer from `coreConfig.MIN_SIZE` to `coreConfig.MAX_SIZE`
+ */
+export function createNodeEngineForSize(size) {
+  const config = defaultConfig.createConfig(size);
+  const rules = defaultRules.withConfig(config);
+  return createNodeEngine({ rules, config });
+}
+
 export { defaultRules as coreRules, defaultConfig as coreConfig };

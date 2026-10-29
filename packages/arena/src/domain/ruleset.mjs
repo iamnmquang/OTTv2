@@ -1,17 +1,23 @@
+import {
+  DEFAULT_BOARD_SIZE,
+  MIN_BOARD_SIZE,
+  MAX_BOARD_SIZE,
+  isValidBoardSize,
+  filesForSize,
+  canonicalSetupForSize
+} from "./board-size.mjs";
+
 export const RULESET_ID_G_V1 = "ottv2-g-default-v1";
 
-const CANONICAL_A_SETUP = Object.freeze([
-  { type: "la", x: 4, y: 7 },
-  { type: "dam", x: 5, y: 7 },
-  { type: "keo", x: 4, y: 6 },
-  { type: "la", x: 5, y: 6 },
-  { type: "dam", x: 6, y: 6 },
-  { type: "keo", x: 5, y: 5 },
-  { type: "la", x: 6, y: 5 },
-  { type: "dam", x: 7, y: 5 },
-  { type: "keo", x: 6, y: 4 },
-  { type: "la", x: 7, y: 4 }
-]);
+/**
+ * Ruleset id of the a x a board: the original id for 9, "ottv2-g-sq<a>-v1" for the others.
+ * A new id per size keeps replays, hashes and allow-lists unambiguous.
+ */
+export function rulesetIdForSize(size) {
+  return size === DEFAULT_BOARD_SIZE ? RULESET_ID_G_V1 : `ottv2-g-sq${size}-v1`;
+}
+
+const CANONICAL_A_SETUP = canonicalSetupForSize(DEFAULT_BOARD_SIZE);
 
 const CANONICAL_DELTAS = Object.freeze([
   [-1, -1], [0, -1], [1, -1],
@@ -72,7 +78,7 @@ export function createCurrentRulesetSnapshot(config) {
   }));
 
   return {
-    rulesetId: RULESET_ID_G_V1,
+    rulesetId: rulesetIdForSize(SIZE),
     boardWidth: SIZE,
     boardHeight: SIZE,
     files: FILES,
@@ -103,7 +109,7 @@ export function canonicalRulesetJson(snapshot) {
 
 /**
  * Validates the schema of a ruleset snapshot (structural validation).
- * Bounded strictly to fixed 9x9 shape, valid coordinates and piece types.
+ * Bounded to a square board of a supported size, valid coordinates and piece types.
  * Rejects unsupported board shapes, arrays, non-objects, and malformed nested values without throwing.
  */
 export function validateRulesetSnapshot(snapshot) {
@@ -120,20 +126,25 @@ export function validateRulesetSnapshot(snapshot) {
       errors.push({ path: "snapshot.rulesetId", code: "invalid_ruleset_id", message: "Missing or invalid rulesetId" });
     }
 
-    // Bounded fixed 9x9 board shape
-    if (snapshot.boardWidth !== 9 || snapshot.boardHeight !== 9) {
+    // Square board, size within the supported range (9 is the original game)
+    if (
+      !isValidBoardSize(snapshot.boardWidth) ||
+      !isValidBoardSize(snapshot.boardHeight) ||
+      snapshot.boardWidth !== snapshot.boardHeight
+    ) {
       errors.push({
         path: "snapshot.boardDimensions",
         code: "unsupported_board_dimensions",
-        message: `Board dimensions must be fixed 9x9, received ${snapshot.boardWidth}x${snapshot.boardHeight}`
+        message: `Board must be square with a size from ${MIN_BOARD_SIZE} to ${MAX_BOARD_SIZE}, received ${snapshot.boardWidth}x${snapshot.boardHeight}`
       });
     }
+    const boardSize = isValidBoardSize(snapshot.boardWidth) ? snapshot.boardWidth : DEFAULT_BOARD_SIZE;
 
-    if (snapshot.files !== "abcdefghi") {
+    if (snapshot.files !== filesForSize(boardSize)) {
       errors.push({
         path: "snapshot.files",
         code: "unsupported_files",
-        message: "files specification must be 'abcdefghi' for 9x9 board"
+        message: `files specification must be '${filesForSize(boardSize)}' for a ${boardSize}x${boardSize} board`
       });
     }
 
@@ -163,7 +174,7 @@ export function validateRulesetSnapshot(snapshot) {
         const goal = snapshot.goals[seat];
         if (!goal || typeof goal !== "object" || Array.isArray(goal)) {
           errors.push({ path: `snapshot.goals.${seat}`, code: "invalid_goal", message: `Missing goal for seat ${seat}` });
-        } else if (!Number.isInteger(goal.x) || !Number.isInteger(goal.y) || goal.x < 0 || goal.x >= 9 || goal.y < 0 || goal.y >= 9) {
+        } else if (!Number.isInteger(goal.x) || !Number.isInteger(goal.y) || goal.x < 0 || goal.x >= boardSize || goal.y < 0 || goal.y >= boardSize) {
           errors.push({ path: `snapshot.goals.${seat}`, code: "invalid_goal_coordinate", message: `Goal coordinate out of bounds for seat ${seat}` });
         }
       }
@@ -187,8 +198,8 @@ export function validateRulesetSnapshot(snapshot) {
             if (typeof p.type !== "string" || p.type.trim().length === 0) {
               errors.push({ path: `${pPath}.type`, code: "invalid_piece_type", message: "Piece type must be string" });
             }
-            if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.x >= 9 || p.y < 0 || p.y >= 9) {
-              errors.push({ path: pPath, code: "invalid_piece_coordinate", message: "Coordinates out of bounds 0..8" });
+            if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.x >= boardSize || p.y < 0 || p.y >= boardSize) {
+              errors.push({ path: pPath, code: "invalid_piece_coordinate", message: `Coordinates out of bounds 0..${boardSize - 1}` });
             } else {
               const cellKey = `${p.x},${p.y}`;
               if (cells.has(cellKey)) {
@@ -233,13 +244,13 @@ export function validateRulesetSnapshot(snapshot) {
 
 /**
  * Strict engine check: returns true if and only if the snapshot matches
- * the full semantics of core ruleset G v1:
- * - ID ottv2-g-default-v1
- * - 9x9 board with files abcdefghi
+ * the full semantics of core ruleset G on an a x a board (a = 9 is "v1"):
+ * - ID rulesetIdForSize(a): ottv2-g-default-v1 for 9, ottv2-g-sq<a>-v1 otherwise
+ * - a x a board (MIN_BOARD_SIZE..MAX_BOARD_SIZE) with the matching files
  * - Types: dam, la, keo (no duplicates, no omissions)
  * - Beats: dam beats keo, keo beats la, la beats dam
- * - Goals: A at (0, 0), B at (8, 8)
- * - Initial setup: A matches canonical 10 piece coordinates and types; B matches 180° rotation
+ * - Goals: A at (0, 0), B at (a - 1, a - 1)
+ * - Initial setup: A matches the canonical 10 piece formation shifted by (a - 9); B matches the 180° rotation
  * - Movement: 8 adjacent directions (deltas), maxDistance 1
  * - Win conditions: goal, elimination, no_moves
  */
@@ -247,8 +258,11 @@ export function isSupportedEngineRuleset(snapshot) {
   const schemaVal = validateRulesetSnapshot(snapshot);
   if (!schemaVal.ok) return false;
 
-  // 1. Ruleset ID
-  if (snapshot.rulesetId !== RULESET_ID_G_V1) return false;
+  // 1. Board size and ruleset ID
+  const size = snapshot.boardWidth;
+  if (!isValidBoardSize(size) || snapshot.boardHeight !== size) return false;
+  if (snapshot.rulesetId !== rulesetIdForSize(size)) return false;
+  const canonicalSetup = canonicalSetupForSize(size);
 
   // 2. Types
   if (!Array.isArray(snapshot.types) || snapshot.types.length !== 3) return false;
@@ -267,13 +281,13 @@ export function isSupportedEngineRuleset(snapshot) {
 
   // 4. Goals
   if (snapshot.goals.A.x !== 0 || snapshot.goals.A.y !== 0) return false;
-  if (snapshot.goals.B.x !== 8 || snapshot.goals.B.y !== 8) return false;
+  if (snapshot.goals.B.x !== size - 1 || snapshot.goals.B.y !== size - 1) return false;
 
   // 5. Initial Setup A
   const setupA = snapshot.initialSetup.A;
   if (!Array.isArray(setupA) || setupA.length !== 10) return false;
   for (let i = 0; i < 10; i++) {
-    const expected = CANONICAL_A_SETUP[i];
+    const expected = canonicalSetup[i];
     const actual = setupA[i];
     if (actual.type !== expected.type || actual.x !== expected.x || actual.y !== expected.y) {
       return false;
@@ -284,9 +298,9 @@ export function isSupportedEngineRuleset(snapshot) {
   const setupB = snapshot.initialSetup.B;
   if (!Array.isArray(setupB) || setupB.length !== 10) return false;
   for (let i = 0; i < 10; i++) {
-    const expectedA = CANONICAL_A_SETUP[i];
+    const expectedA = canonicalSetup[i];
     const actualB = setupB[i];
-    if (actualB.type !== expectedA.type || actualB.x !== 8 - expectedA.x || actualB.y !== 8 - expectedA.y) {
+    if (actualB.type !== expectedA.type || actualB.x !== size - 1 - expectedA.x || actualB.y !== size - 1 - expectedA.y) {
       return false;
     }
   }

@@ -15,7 +15,7 @@ import { createHeadlessMatchController } from "../../../packages/arena/src/appli
 import { createCurrentRulesetSnapshot } from "../../../packages/arena/src/contracts/index.mjs";
 import { createFunctionBot } from "../../../packages/arena/src/adapters/function-bot.mjs";
 import { createMapState } from "../../../packages/arena/src/domain/maps/index.mjs";
-import { coreConfig, createNodeEngine } from "../../../packages/arena-node/src/core/node-engine.mjs";
+import { coreConfig, createNodeEngine, createNodeEngineForSize } from "../../../packages/arena-node/src/core/node-engine.mjs";
 import { computeRulesetHash } from "../../../packages/arena-node/src/core/ruleset-identity.mjs";
 import { InfrastructureError } from "./executor.mjs";
 
@@ -56,8 +56,8 @@ export function chooserFor(profile, random = Math.random) {
   };
 }
 
-/** One game between two choosers on a simulated clock; returns the compact replay the Worker checks. */
-export async function playSimulatedGame({ matchId, mapId, policy, chooseA, chooseB }) {
+/** One game between two choosers on a simulated clock; returns the compact replay the Worker checks. `boardSize` is the a of an a x a board (default 9). */
+export async function playSimulatedGame({ matchId, mapId, policy, chooseA, chooseB, boardSize = 9 }) {
   let now = 0;
   const clock = { nowMs: () => now, schedule: () => 0, cancel() {} };
   const bot = (botId, choose) => createFunctionBot({
@@ -68,10 +68,10 @@ export async function playSimulatedGame({ matchId, mapId, policy, chooseA, choos
     }
   });
   const moves = [];
-  const snapshot = createCurrentRulesetSnapshot(coreConfig);
+  const snapshot = createCurrentRulesetSnapshot(boardSize === 9 ? coreConfig : coreConfig.createConfig(boardSize));
   const result = await createHeadlessMatchController({
     matchId,
-    engine: createNodeEngine(),
+    engine: boardSize === 9 ? createNodeEngine() : createNodeEngineForSize(boardSize),
     botA: bot(`${matchId.slice(0, 8)}-A`, chooseA),
     botB: bot(`${matchId.slice(0, 8)}-B`, chooseB),
     clock,
@@ -80,11 +80,11 @@ export async function playSimulatedGame({ matchId, mapId, policy, chooseA, choos
     rulesetSnapshot: snapshot,
     rulesetHash: computeRulesetHash(snapshot),
     engineRevision: "bot-cup-runner-simulated",
-    initialState: createMapState(mapId),
+    initialState: createMapState(mapId, 1, boardSize),
     onAcceptedMove: (event) => moves.push({ seat: event.seat, from: event.move.from, to: event.move.to, elapsedMs: event.frame.elapsedMs })
   }).run();
   if (result.kind === "infrastructure_error") throw new InfrastructureError(`match ${result.code}`);
-  return compactReplay({ mapId, moves, result });
+  return compactReplay({ mapId, moves, result, boardSize });
 }
 
 /**

@@ -4,14 +4,16 @@
  * winner, an impossible clock or a game that went on after it ended is refused.
  *
  * Format "ott-bot-cup-replay-1":
- *   { format, mapId, policy: { matchPolicyVersion, maxPlies, initialTimeMs, turnTimeLimitMs, firstMoveGraceMs },
+ *   { format, mapId, boardSize?, policy: { matchPolicyVersion, maxPlies, initialTimeMs, turnTimeLimitMs, firstMoveGraceMs },
  *     moves: [{ seat, from: {x, y}, to: {x, y}, elapsedMs }],
  *     result: { outcome: "win"|"draw"|"forfeit", winner, loser, reason, acceptedPlies } }
+ * `boardSize` is the a of an a x a board and is left out for the original 9x9 board, so 9x9 replays are unchanged.
+ * The API says which size it scheduled (`expected.boardSize`, default 9); a replay for another size is refused.
  */
 import rules from "../../game-core/src/rules.js";
 import gameConfig from "../../game-core/src/config.js";
 import { createReplayJournal } from "../../arena/src/application/replay-journal.mjs";
-import { createCurrentRulesetSnapshot } from "../../arena/src/contracts/index.mjs";
+import { createCurrentRulesetSnapshot, DEFAULT_BOARD_SIZE, isValidBoardSize } from "../../arena/src/contracts/index.mjs";
 import { createMapState } from "../../arena/src/domain/maps/index.mjs";
 import { BOT_CUP_MATCH_POLICY } from "../../arena/src/domain/match-policy.mjs";
 import { canonicalRulesetJson } from "../../arena/src/domain/ruleset.mjs";
@@ -32,14 +34,25 @@ function fail(error, ply = null) {
   return { ok: false, error, ply };
 }
 
+// The rules for each board size (9 is the module's own default engine).
+const rulesBySize = new Map();
+function rulesFor(size) {
+  if (size === DEFAULT_BOARD_SIZE) return rules;
+  if (!rulesBySize.has(size)) rulesBySize.set(size, rules.withConfig(gameConfig.createConfig(size)));
+  return rulesBySize.get(size);
+}
+
 /**
  * @param {unknown} replay
- * @param {{ mapId: string }} expected  what the API scheduled; the replay must match it
+ * @param {{ mapId: string, boardSize?: number }} expected  what the API scheduled; the replay must match it
  * @returns {{ ok: true, result: object, plies: number } | { ok: false, error: string, ply: number|null }}
  */
 export function verifyReplay(replay, expected) {
   if (!replay || typeof replay !== "object" || replay.format !== REPLAY_FORMAT) return fail("replay_format");
   if (replay.mapId !== expected.mapId || !MAPS.includes(replay.mapId)) return fail("replay_map");
+  const size = expected.boardSize ?? DEFAULT_BOARD_SIZE;
+  if (!isValidBoardSize(size) || (replay.boardSize ?? DEFAULT_BOARD_SIZE) !== size) return fail("replay_board_size");
+  const sizedRules = rulesFor(size);
   const policy = BOT_CUP_POLICY;
   const claimed = replay.policy ?? {};
   for (const key of ["matchPolicyVersion", "maxPlies", "initialTimeMs", "turnTimeLimitMs", "firstMoveGraceMs"]) {
@@ -49,7 +62,7 @@ export function verifyReplay(replay, expected) {
   const result = replay.result;
   if (!result || typeof result !== "object" || result.acceptedPlies !== replay.moves.length) return fail("replay_result");
 
-  let state = createMapState(replay.mapId);
+  let state = createMapState(replay.mapId, 1, size);
   const bank = { A: policy.initialTimeMs, B: policy.initialTimeMs };
   const moved = { A: false, B: false };
   for (let index = 0; index < replay.moves.length; index++) {
@@ -62,7 +75,7 @@ export function verifyReplay(replay, expected) {
     const grace = !moved[move.seat];
     const budget = grace ? policy.firstMoveGraceMs : Math.min(policy.turnTimeLimitMs, bank[move.seat]);
     if (elapsed >= budget) return fail("replay_clock", ply);
-    const applied = rules.applyMove(state, move.seat, move.from, move.to);
+    const applied = sizedRules.applyMove(state, move.seat, move.from, move.to);
     if (!applied.ok) return fail("replay_illegal_move", ply);
     if (!grace) bank[move.seat] -= elapsed;
     moved[move.seat] = true;
@@ -101,10 +114,11 @@ export function verifyReplay(replay, expected) {
 }
 
 /** Builds the compact replay from an Arena controller run (moves collected through onAcceptedMove). */
-export function compactReplay({ mapId, moves, result }) {
+export function compactReplay({ mapId, moves, result, boardSize = DEFAULT_BOARD_SIZE }) {
   return {
     format: REPLAY_FORMAT,
     mapId,
+    ...(boardSize === DEFAULT_BOARD_SIZE ? {} : { boardSize }),
     policy: {
       matchPolicyVersion: BOT_CUP_POLICY.matchPolicyVersion,
       maxPlies: BOT_CUP_POLICY.maxPlies,
@@ -134,12 +148,14 @@ function cloneState(state) {
  * @param {{ matchId: string, participants: { A: { botId: string, name: string }, B: { botId: string, name: string } } }} meta
  */
 export async function expandReplay(replay, meta) {
-  const snapshot = createCurrentRulesetSnapshot(gameConfig);
+  const size = replay.boardSize ?? DEFAULT_BOARD_SIZE;
+  const sizedRules = rulesFor(size);
+  const snapshot = createCurrentRulesetSnapshot(gameConfig.createConfig(size));
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalRulesetJson(snapshot)));
   const rulesetHash = `sha256:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
   const policy = { ...BOT_CUP_POLICY };
   const bank = { A: policy.initialTimeMs, B: policy.initialTimeMs };
-  let state = createMapState(replay.mapId);
+  let state = createMapState(replay.mapId, 1, size);
   state.clock.remainingMs = { ...bank };
 
   const journal = createReplayJournal();
@@ -155,7 +171,7 @@ export async function expandReplay(replay, meta) {
   });
   const moved = { A: false, B: false };
   for (const move of replay.moves) {
-    const applied = rules.applyMove(state, move.seat, move.from, move.to);
+    const applied = sizedRules.applyMove(state, move.seat, move.from, move.to);
     if (!applied.ok) throw new Error(`replay does not follow the rules: ${applied.error}`);
     if (moved[move.seat]) bank[move.seat] = Math.max(0, bank[move.seat] - move.elapsedMs);
     moved[move.seat] = true;

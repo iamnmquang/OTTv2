@@ -15,11 +15,12 @@ Bạn chỉ cần cài **Node 22** (để chạy trọng tài) và **Python 3.12
 
 Luật đầy đủ: `Rule.md` trong repo của giải.
 
-- Bàn 9×9. Tọa độ `x` là cột (0 = A … 8 = I), `y` là hàng (0 = 1 … 8 = 9).
+- Bàn **a×a**: ban đầu a = 9, nhưng **a có thể đổi giữa các giai đoạn của giải** (a nguyên từ 9 đến 25, được công bố trước
+  mỗi giai đoạn). Tọa độ `x` là cột (0 = A …), `y` là hàng (0 = 1 …), cả hai chạy từ 0 đến a − 1. **Đừng viết cứng 9 hay 8 trong bot.**
 - Hai ghế: **A (Đỏ)** đi trước, **B (Xanh)** đi sau. Mỗi bên có 10 quân thuộc 3 loại: `dam` (Đấm), `la` (Lá), `keo` (Kéo).
 - Mỗi lượt đi **một** quân **1 ô theo 8 hướng**. Không vào ô có quân mình, không vào ô có quân đối phương **cùng loại**.
 - Đi vào ô có quân đối phương khác loại: Đấm ăn Kéo, Kéo ăn Lá, Lá ăn Đấm. Đi vào quân mà mình thua là **nước không hợp lệ**.
-- Thắng khi: đưa một quân vào **ô thắng của mình** (A: `(0,0)`, B: `(8,8)`), hoặc đối phương hết quân, hoặc sau nước của bạn
+- Thắng khi: đưa một quân vào **ô thắng của mình** (A: `(0,0)`, B: `(a−1,a−1)`, tức góc đối diện), hoặc đối phương hết quân, hoặc sau nước của bạn
   đối phương không còn nước hợp lệ.
 
 Bạn **không bắt buộc** tự cài luật: trọng tài gửi sẵn danh sách nước hợp lệ.
@@ -29,7 +30,8 @@ Bạn **không bắt buộc** tự cài luật: trọng tài gửi sẵn danh s�
 Bot là một chương trình đọc stdin và ghi stdout. Mỗi lượt của bot, trọng tài gửi **một dòng JSON**:
 
 ```json
-{"protocolVersion":1,"type":"turn","requestId":"…","ply":1,"turn":"A","timeRemainingMs":30000,"turnTimeLimitMs":500,
+{"protocolVersion":1,"type":"turn","requestId":"…","ply":1,"turn":"A","boardWidth":9,"boardHeight":9,
+ "goals":{"A":{"x":0,"y":0},"B":{"x":8,"y":8}},"timeRemainingMs":30000,"turnTimeLimitMs":500,
  "board":[{"id":"A-dam-1","owner":"A","type":"dam","x":5,"y":6}, …],
  "legalMoves":[{"from":{"x":5,"y":6},"to":{"x":4,"y":5}}, …]}
 ```
@@ -40,6 +42,8 @@ Bot trả lời **một dòng JSON** (nhớ xuống dòng và flush):
 {"protocolVersion":1,"requestId":"<giữ nguyên requestId vừa nhận>","move":{"from":{"x":5,"y":6},"to":{"x":4,"y":5}}}
 ```
 
+- `boardWidth` / `boardHeight` là kích thước bàn a của ván này và `goals` là ô thắng của hai ghế. **Đọc chúng từ input mỗi lượt**
+  (bot mẫu có sẵn hàm `board_size` / `goal_of`).
 - `turn` là ghế của bot trong ván này. Hai ván của một cặp đấu đổi màu, nên bot phải chơi được cả A lẫn B.
 - **Mọi log ghi ra stderr.** In bất cứ thứ gì khác ra stdout là sai giao thức và bị xử thua.
 - Bot chạy suốt ván (một tiến trình cho cả ván), nên có thể giữ dữ liệu giữa các lượt.
@@ -63,9 +67,12 @@ node judge.mjs bot.py easy                 # 2 ván với AI "Dễ" trên bản 
 node judge.mjs bot.py easy --maps all      # 6 ván: 3 bản đồ × 2 màu, giống vòng kiểm tra
 node judge.mjs bot.py bot.mjs --verbose    # hai bot của bạn, in stderr của bot
 node judge.mjs bot.py hard --replays out   # lưu replay JSON từng ván vào thư mục out/
+node judge.mjs bot.py easy --size 13       # bàn 13×13 (a từ 9 đến 25): thử xem bot có còn đúng khi a đổi không
 ```
 
 House bot có sẵn: `first-legal`, `easy`, `medium`, `hard` (AI trong game), `sentinel`, `strategist`.
+Với `--size` khác 9 chỉ dùng được `first-legal`, `easy`, `medium`, `hard` (`sentinel` và `strategist` chỉ chơi bàn 9×9).
+Hãy thử bot của bạn ở vài cỡ bàn khác nhau trước khi nộp.
 
 `judge.mjs` kiểm tra cú pháp trước khi chạy (giống máy chấm: `py_compile` / `node --check`). Khi bot thua vì lỗi, trọng tài
 in 10 dòng stderr cuối cùng của bot.

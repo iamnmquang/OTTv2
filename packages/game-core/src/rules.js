@@ -4,6 +4,8 @@
       ? require("./config")
       : global.OTT_CONFIG;
   const api = factory(config);
+  // The module above is the default (9x9) game. `withConfig(OTT_CONFIG.createConfig(a))` builds the same rules for another board.
+  api.withConfig = (customConfig) => factory(customConfig);
   if (typeof module === "object" && module && module.exports) module.exports = api;
   global.OTT_RULES = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function (config) {

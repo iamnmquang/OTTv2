@@ -8,11 +8,23 @@ import readline from "node:readline";
 
 // Loại quân thắng loại quân nào: Đấm ăn Kéo, Kéo ăn Lá, Lá ăn Đấm.
 const BEATS = { dam: "keo", keo: "la", la: "dam" };
-// Ô thắng của mỗi ghế (x = cột 0..8, y = hàng 0..8). A thắng ở (0, 0), B thắng ở (8, 8).
-const GOAL = { A: { x: 0, y: 0 }, B: { x: 8, y: 8 } };
+// Kích thước bàn KHÔNG cố định: mỗi giai đoạn của giải có thể dùng bàn a×a khác nhau (đọc a từ input mỗi lượt).
+// Đừng viết cứng 9 hay 8 trong bot. A thắng ở (0, 0), B thắng ở góc đối diện (a-1, a-1).
 
 function log(...parts) {
   process.stderr.write(parts.join(" ") + "\n");
+}
+
+/** Số ô mỗi cạnh của bàn (a trong bàn a×a). */
+function boardSize(turn) {
+  return turn.boardWidth ?? 9;
+}
+
+/** Ô thắng { x, y } của ghế `seat`. */
+function goalOf(turn, seat) {
+  if (turn.goals) return turn.goals[seat];
+  const last = boardSize(turn) - 1;
+  return seat === "A" ? { x: 0, y: 0 } : { x: last, y: last };
 }
 
 /**
@@ -20,6 +32,7 @@ function log(...parts) {
  *
  * turn có các trường chính:
  *   turn.turn             ghế của bot: "A" hoặc "B"
+ *   turn.boardWidth       kích thước bàn a (bàn a×a); turn.goals là ô thắng của hai ghế
  *   turn.board            danh sách quân: { id, owner: "A"|"B", type: "dam"|"la"|"keo", x, y }
  *   turn.legalMoves       mọi nước hợp lệ: { from: { x, y }, to: { x, y } }
  *   turn.ply              số thứ tự nước trong ván (từ 1)
@@ -31,7 +44,7 @@ function chooseMove(turn) {
 
   // ===== Viết chiến thuật ở đây =====
   // Ví dụ: đi thẳng vào ô thắng nếu được.
-  const goal = GOAL[turn.turn];
+  const goal = goalOf(turn, turn.turn);
   const winning = moves.find((move) => move.to.x === goal.x && move.to.y === goal.y);
   if (winning) return winning;
 

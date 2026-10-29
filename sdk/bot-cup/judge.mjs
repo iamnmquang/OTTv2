@@ -2,10 +2,11 @@
 /**
  * Trọng tài cục bộ của OTT Bot Cup (plan §6.4). Cho hai bot đấu với nhau trên máy của bạn, đổi màu sau mỗi ván.
  *
- *   node judge.mjs <bot-1> <bot-2> [--maps classic|flanks|center|all] [--rounds N] [--replays <thư mục>] [--verbose]
+ *   node judge.mjs <bot-1> <bot-2> [--maps classic|flanks|center|all] [--size N] [--rounds N] [--replays <thư mục>] [--verbose]
  *
  * Bot là một file .py / .js / .mjs, hoặc house bot: first-legal, easy, medium, hard (AI trong game), sentinel, strategist.
  * Ví dụ:  node judge.mjs bot.py easy --maps all      (giống vòng kiểm tra: 3 bản đồ × 2 màu = 6 ván)
+ *         node judge.mjs bot.py easy --size 13        (bàn 13×13; bot phải đọc kích thước từ input, không viết cứng 9)
  *
  * Khác với máy chấm thật: bot chạy thẳng trên máy bạn (không có container, có mạng), nên chỉ dùng để thử.
  * Giới hạn thời gian giống giải: 500 ms mỗi nước, quỹ 30 s mỗi ván. Bản đóng gói một file: `npm run bot-cup:kit`.
@@ -22,11 +23,11 @@ import { choose as strategistMove } from "../../bots/strategist.mjs";
 import { createHeadlessMatchController } from "../../packages/arena/src/application/match-controller.mjs";
 import { createReplayJournal } from "../../packages/arena/src/application/replay-journal.mjs";
 import { createFunctionBot } from "../../packages/arena/src/adapters/function-bot.mjs";
-import { createCurrentRulesetSnapshot } from "../../packages/arena/src/contracts/index.mjs";
+import { createCurrentRulesetSnapshot, DEFAULT_BOARD_SIZE, MIN_BOARD_SIZE, MAX_BOARD_SIZE, isValidBoardSize } from "../../packages/arena/src/contracts/index.mjs";
 import { DEFAULT_MATCH_POLICY } from "../../packages/arena/src/domain/match-policy.mjs";
 import { createMapState } from "../../packages/arena/src/domain/maps/index.mjs";
 import { createNodeClock } from "../../packages/arena-node/src/clock/node-clock.mjs";
-import { createNodeEngine, coreConfig } from "../../packages/arena-node/src/core/node-engine.mjs";
+import { createNodeEngineForSize, coreConfig, coreRules } from "../../packages/arena-node/src/core/node-engine.mjs";
 import { computeRulesetHash } from "../../packages/arena-node/src/core/ruleset-identity.mjs";
 import { createProcessBot } from "../../packages/arena-node/src/execution/process-bot.mjs";
 import { resolvePythonExecutable } from "../../packages/arena-node/src/execution/profile-registry.mjs";
@@ -60,13 +61,28 @@ function stateFromTurn(turn) {
   };
 }
 
+// The in-game AI is built per board size (9 is the original board).
+const aiBySize = new Map();
+function aiForSize(size) {
+  if (size === DEFAULT_BOARD_SIZE) return ai;
+  if (!aiBySize.has(size)) {
+    const config = coreConfig.createConfig(size);
+    aiBySize.set(size, ai.withConfig(coreRules.withConfig(config), config));
+  }
+  return aiBySize.get(size);
+}
+
+// sentinel and strategist have the 9x9 board written into them, so they only play size 9.
+const NINE_ONLY_HOUSE_BOTS = new Set(["sentinel", "strategist"]);
+
+// Each house bot is a factory: size -> choose(turn).
 const HOUSE_BOTS = {
-  "first-legal": (turn) => turn.legalMoves[0],
-  easy: (turn) => ai.chooseMove(stateFromTurn(turn), turn.turn, { level: "easy" }),
-  medium: (turn) => ai.chooseMove(stateFromTurn(turn), turn.turn, { level: "medium" }),
-  hard: (turn) => ai.chooseMove(stateFromTurn(turn), turn.turn, { level: "hard" }),
-  sentinel: (turn) => sentinelMove(turn).move,
-  strategist: (turn) => strategistMove(turn).move
+  "first-legal": () => (turn) => turn.legalMoves[0],
+  easy: (size) => (turn) => aiForSize(size).chooseMove(stateFromTurn(turn), turn.turn, { level: "easy" }),
+  medium: (size) => (turn) => aiForSize(size).chooseMove(stateFromTurn(turn), turn.turn, { level: "medium" }),
+  hard: (size) => (turn) => aiForSize(size).chooseMove(stateFromTurn(turn), turn.turn, { level: "hard" }),
+  sentinel: () => (turn) => sentinelMove(turn).move,
+  strategist: () => (turn) => strategistMove(turn).move
 };
 
 // ---------- bot files ----------
@@ -103,8 +119,8 @@ export function prepareBotFile(file) {
   return { ok: true, dir, entry, executable };
 }
 
-function createBot(spec, botId, clock, prepared, stderrSink) {
-  if (HOUSE_BOTS[spec]) return createFunctionBot({ botId, chooseFn: HOUSE_BOTS[spec] });
+function createBot(spec, botId, clock, prepared, stderrSink, size) {
+  if (HOUSE_BOTS[spec]) return createFunctionBot({ botId, chooseFn: HOUSE_BOTS[spec](size) });
   return createProcessBot({
     botId,
     executable: prepared.executable,
@@ -118,21 +134,22 @@ function createBot(spec, botId, clock, prepared, stderrSink) {
 // ---------- one game ----------
 
 /**
- * @param {{ a: string, b: string, mapId: string, prepared: Record<string, object>, onStderr?: (spec: string, text: string) => void }} options
+ * @param {{ a: string, b: string, mapId: string, prepared: Record<string, object>, size?: number, onStderr?: (spec: string, text: string) => void }} options
+ *   `size` is the board size (default 9); the bot receives it as `boardWidth` / `boardHeight` in every turn message.
  */
-export async function playGame({ a, b, mapId, prepared, onStderr = () => {} }) {
+export async function playGame({ a, b, mapId, prepared, size = DEFAULT_BOARD_SIZE, onStderr = () => {} }) {
   const clock = createNodeClock();
-  const snapshot = createCurrentRulesetSnapshot(coreConfig);
+  const snapshot = createCurrentRulesetSnapshot(coreConfig.createConfig(size));
   const rulesetHash = computeRulesetHash(snapshot);
   const matchId = `judge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const initialState = createMapState(mapId);
+  const initialState = createMapState(mapId, 1, size);
   initialState.clock.remainingMs = { A: BANK_MS, B: BANK_MS };
   const journal = createReplayJournal({ matchId, policyId: JUDGE_POLICY.matchPolicyVersion, rulesetId: snapshot.rulesetId, engineFingerprint: "bot-cup-judge", rulesetHash });
   const controller = createHeadlessMatchController({
     matchId,
-    engine: createNodeEngine(coreConfig),
-    botA: createBot(a, `${matchId}-A`, clock, prepared[a], (text) => onStderr(a, text)),
-    botB: createBot(b, `${matchId}-B`, clock, prepared[b], (text) => onStderr(b, text)),
+    engine: createNodeEngineForSize(size),
+    botA: createBot(a, `${matchId}-A`, clock, prepared[a], (text) => onStderr(a, text), size),
+    botB: createBot(b, `${matchId}-B`, clock, prepared[b], (text) => onStderr(b, text), size),
     clock,
     journal,
     policy: JUDGE_POLICY,
@@ -152,7 +169,7 @@ export async function playGame({ a, b, mapId, prepared, onStderr = () => {} }) {
 // ---------- command line ----------
 
 function parseArgs(argv) {
-  const options = { bots: [], maps: ["classic"], rounds: 1, replays: null, verbose: false };
+  const options = { bots: [], maps: ["classic"], size: DEFAULT_BOARD_SIZE, rounds: 1, replays: null, verbose: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--verbose") options.verbose = true;
@@ -161,6 +178,9 @@ function parseArgs(argv) {
       if (value === "all") options.maps = [...MAPS];
       else if (MAPS.includes(value)) options.maps = [value];
       else throw new Error(`--maps phải là ${MAPS.join(", ")} hoặc all`);
+    } else if (arg === "--size") {
+      options.size = Number(argv[++i]);
+      if (!isValidBoardSize(options.size)) throw new Error(`--size phải là số nguyên từ ${MIN_BOARD_SIZE} đến ${MAX_BOARD_SIZE}`);
     } else if (arg === "--rounds") {
       options.rounds = Number(argv[++i]);
       if (!Number.isInteger(options.rounds) || options.rounds < 1 || options.rounds > 50) throw new Error("--rounds phải từ 1 đến 50");
@@ -169,11 +189,13 @@ function parseArgs(argv) {
     else options.bots.push(arg);
   }
   if (options.bots.length !== 2) throw new Error("Cần đúng hai bot");
+  const nineOnly = options.bots.find((spec) => NINE_ONLY_HOUSE_BOTS.has(spec));
+  if (options.size !== DEFAULT_BOARD_SIZE && nineOnly) throw new Error(`Bot ${nineOnly} chỉ chơi bàn ${DEFAULT_BOARD_SIZE}×${DEFAULT_BOARD_SIZE}`);
   return options;
 }
 
-const USAGE = `Cách dùng: node judge.mjs <bot-1> <bot-2> [--maps classic|flanks|center|all] [--rounds N] [--replays <thư mục>] [--verbose]
-Bot là file .py / .js / .mjs, hoặc house bot: ${Object.keys(HOUSE_BOTS).join(", ")}.`;
+const USAGE = `Cách dùng: node judge.mjs <bot-1> <bot-2> [--maps classic|flanks|center|all] [--size N] [--rounds N] [--replays <thư mục>] [--verbose]
+Bot là file .py / .js / .mjs, hoặc house bot: ${Object.keys(HOUSE_BOTS).join(", ")}.\n--size N: bàn N×N, N từ ${MIN_BOARD_SIZE} đến ${MAX_BOARD_SIZE} (mặc định ${DEFAULT_BOARD_SIZE}).`;
 
 export async function main(argv, out = (line) => process.stdout.write(`${line}\n`)) {
   let options;
@@ -213,6 +235,7 @@ export async function main(argv, out = (line) => process.stdout.write(`${line}\n
             b,
             mapId,
             prepared,
+            size: options.size,
             onStderr: (spec, text) => {
               if (options.verbose) process.stderr.write(text.replace(/^/gm, `[${name(spec)}] `));
               tails[spec] = (tails[spec] + text).slice(-2000);
@@ -222,7 +245,8 @@ export async function main(argv, out = (line) => process.stdout.write(`${line}\n
             out(`Ván ${game}: lỗi trọng tài (${result.code}). Hãy chạy lại.`);
             return 1;
           }
-          const header = `Ván ${game} · ${mapId} · Đỏ (A) = ${name(a)} · Xanh (B) = ${name(b)}: `;
+          const sizeNote = options.size === DEFAULT_BOARD_SIZE ? "" : ` · ${options.size}×${options.size}`;
+          const header = `Ván ${game} · ${mapId}${sizeNote} · Đỏ (A) = ${name(a)} · Xanh (B) = ${name(b)}: `;
           if (result.outcome === "draw") {
             points[1] += 0.5;
             points[2] += 0.5;
