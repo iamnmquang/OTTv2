@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
-import { DemoNav, PROJECTOR_BODY_ATTRIBUTE } from "./DemoNav";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DemoNav, HINT_STORAGE_KEY, PROJECTOR_BODY_ATTRIBUTE } from "./DemoNav";
 import { DEMO_NAV_GROUPS, isCurrentLink, isDemoNavEnabled } from "./demoNavLinks";
 
 const STAGING = { origin: "https://ottv2-staging.vercel.app", search: "" };
@@ -11,6 +11,8 @@ describe("demo page switcher", () => {
   afterEach(() => {
     cleanup();
     document.body.removeAttribute(PROJECTOR_BODY_ATTRIBUTE);
+    window.localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("stays off on production and unknown hosts", () => {
@@ -54,6 +56,41 @@ describe("demo page switcher", () => {
     expect(isCurrentLink(`${showcase}/?view=bot-cup&screen=projector`, bracket)).toBe(false);
     expect(isCurrentLink(`${showcase}/`, bracket)).toBe(false);
     expect(isCurrentLink("https://ottv2-bot-cup-admin-staging.opticsquang.workers.dev/", { origin: "https://ottv2-bot-cup-admin-staging.opticsquang.workers.dev", search: "" })).toBe(true);
+  });
+
+  it("points at the button until the visitor opens the switcher, then remembers", async () => {
+    const user = userEvent.setup();
+    render(<DemoNav place={STAGING} env={NO_FLAG} />);
+
+    expect(screen.getByRole("note")).toHaveTextContent("Bấm vào đây để xem các trang demo");
+    await user.click(screen.getByRole("button", { name: /Chuyển trang/ }));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(window.localStorage.getItem(HINT_STORAGE_KEY)).toBe("true");
+
+    cleanup();
+    render(<DemoNav place={STAGING} env={NO_FLAG} />);
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("hides the pointer with its close button", async () => {
+    const user = userEvent.setup();
+    render(<DemoNav place={STAGING} env={NO_FLAG} />);
+
+    await user.click(screen.getByRole("button", { name: "Ẩn gợi ý" }));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(window.localStorage.getItem(HINT_STORAGE_KEY)).toBe("true");
+  });
+
+  it("still works when storage is blocked", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    const user = userEvent.setup();
+    render(<DemoNav place={STAGING} env={NO_FLAG} />);
+
+    expect(screen.getByRole("note")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Chuyển trang/ }));
+    expect(screen.getByRole("dialog", { name: "Chuyển trang" })).toBeInTheDocument();
   });
 
   it("opens and closes with Alt+K", () => {
