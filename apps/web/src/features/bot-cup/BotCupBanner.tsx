@@ -27,7 +27,7 @@ export function BotCupBanner({ gateway, onOpen, now = Date.now }: BotCupBannerPr
     <button type="button" className={styles.banner} onClick={onOpen} aria-label={`${title}: ${line}. Mở trang giải đấu`}>
       <img className={styles.logo} src={uetLogo} alt="" width={64} height={64} />
       <span className={styles.text}>
-        <span className={styles.eyebrow}>Trường Đại học Công nghệ · ĐHQGHN{event?.mode === "demo" ? " · Bản thử nghiệm" : ""}</span>
+        <span className={styles.eyebrow}>Trường Đại học Công nghệ · ĐHQGHN</span>
         <span className={styles.title}>{title}</span>
         <span className={styles.line}>{line}</span>
       </span>

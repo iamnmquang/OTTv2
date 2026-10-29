@@ -3,11 +3,11 @@
 INSERT INTO events (id, name, mode, phase, registration_opens_at, registration_closes_at, practice_opens_at, config_json)
 VALUES (
   'staging-demo',
-  'OTT Bot Cup (staging)',
+  'OTT Bot Cup 2026',
   'demo',
   'registration',
   1761264000000, -- 2025-10-24T00:00:00Z
-  1798761600000, -- 2027-01-01T00:00:00Z
+  1798736340000, -- 2026-12-31T16:59:00Z = 23:59 31/12/2026 giờ VN
   1792713600000, -- 2026-10-23T00:00:00Z: submissions open (P3)
   '{}'
 )

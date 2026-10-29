@@ -1,27 +1,40 @@
-.fab {
+.dock {
   position: fixed;
   right: var(--ui-space-4);
   bottom: var(--ui-space-4);
   z-index: var(--ui-z-toast);
   display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  padding: 0;
-  border: 2px solid var(--ui-glass-border-strong);
-  border-radius: var(--ui-radius-pill);
-  background: var(--ui-surface-raised);
-  color: var(--ui-text);
-  font-size: var(--ui-text-lg);
-  box-shadow: var(--ui-shadow-panel);
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity var(--ui-motion-fast) var(--ui-ease-standard);
+  justify-items: end;
+  gap: var(--ui-space-2);
+  max-width: calc(100vw - 2 * var(--ui-space-4));
 }
 
-.fab:hover,
-.fab:focus-visible {
-  opacity: 1;
+.fab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--ui-space-4);
+  border: 2px solid var(--ui-glass-border-strong);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-uet-blue);
+  color: var(--ui-uet-on-blue);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: var(--ui-shadow-panel);
+  cursor: pointer;
+  transition: transform var(--ui-motion-fast) var(--ui-ease-standard), box-shadow var(--ui-motion-fast) var(--ui-ease-standard);
+}
+
+.fab > span:first-child {
+  font-size: var(--ui-text-lg);
+}
+
+.fab:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--ui-shadow-float);
 }
 
 .fab:focus-visible {
@@ -29,7 +42,82 @@
   outline-offset: 2px;
 }
 
-:global(body[data-ott-projector]) .fab {
+.attention {
+  animation: demo-nav-pulse 1.6s var(--ui-ease-standard) infinite;
+}
+
+.pointer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-2) var(--ui-space-3);
+  border: 2px solid var(--ui-glass-border-strong);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-raised);
+  color: var(--ui-text);
+  font-size: var(--ui-text-sm);
+  font-weight: 700;
+  box-shadow: var(--ui-shadow-panel);
+}
+
+.pointerClose {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-pill);
+  background: transparent;
+  color: var(--ui-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pointerClose:hover {
+  color: var(--ui-text);
+}
+
+.pointerClose:focus-visible {
+  outline: 3px solid var(--ui-focus);
+}
+
+.arrow {
+  position: absolute;
+  right: var(--ui-space-12);
+  top: calc(100% + 2px);
+  color: var(--ui-focus);
+  animation: demo-nav-bounce 0.9s ease-in-out infinite alternate;
+}
+
+.pointer:has(+ .fab) {
+  margin-bottom: var(--ui-space-8);
+}
+
+@keyframes demo-nav-pulse {
+  0% { box-shadow: var(--ui-shadow-panel), 0 0 0 0 color-mix(in srgb, var(--ui-uet-blue) 55%, transparent); }
+  70% { box-shadow: var(--ui-shadow-panel), 0 0 0 12px color-mix(in srgb, var(--ui-uet-blue) 0%, transparent); }
+  100% { box-shadow: var(--ui-shadow-panel), 0 0 0 0 transparent; }
+}
+
+@keyframes demo-nav-bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fab,
+  .fab:hover,
+  .attention,
+  .arrow {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}
+
+:global(body[data-ott-projector]) .dock {
   display: none;
 }
 
