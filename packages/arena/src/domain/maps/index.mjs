@@ -17,6 +17,7 @@ import {
   cloneDeep,
   createFreshCoreState
 } from "./definitions.mjs";
+import { assertBoardSize, goalsForSize, shiftSetupToSize } from "../board-size.mjs";
 
 export {
   BOARD_SIZE,
@@ -34,9 +35,10 @@ export {
  * Pure helper to compute legal moves for a given seat under invariant core rules.
  * @param {Array<{id: string, player: "A"|"B", type: string, x: number, y: number}>} pieces
  * @param {"A"|"B"} seat
+ * @param {number} [size=9] board size
  * @returns {Array<{from: {x: number, y: number}, to: {x: number, y: number}}>}
  */
-export function computePureLegalMoves(pieces, seat) {
+export function computePureLegalMoves(pieces, seat, size = BOARD_SIZE) {
   const moves = [];
   const seatPieces = pieces.filter((p) => p.player === seat);
 
@@ -45,7 +47,7 @@ export function computePureLegalMoves(pieces, seat) {
       const tx = piece.x + dx;
       const ty = piece.y + dy;
 
-      if (tx < 0 || tx >= BOARD_SIZE || ty < 0 || ty >= BOARD_SIZE) {
+      if (tx < 0 || tx >= size || ty < 0 || ty >= size) {
         continue;
       }
 
@@ -71,10 +73,13 @@ export function computePureLegalMoves(pieces, seat) {
  * Checks 10 pieces, 3-4-3 type inventory, bounds, single occupancy,
  * 180° rotation disjointness, and Chebyshev distance > 1 from Seat A goal (0, 0).
  * @param {unknown} setupA
+ * @param {number} [size=9] board size (the setup is given in the coordinates of that board)
  * @returns {{ ok: boolean, errors: string[] }}
  */
-export function validateMapSetup(setupA) {
+export function validateMapSetup(setupA, size = BOARD_SIZE) {
   const errors = [];
+  const goals = goalsForSize(size);
+  const last = size - 1;
 
   if (!Array.isArray(setupA)) {
     return { ok: false, errors: ["setupA must be an array of pieces"] };
@@ -101,8 +106,8 @@ export function validateMapSetup(setupA) {
       counts[spot.type] += 1;
     }
 
-    if (!Number.isInteger(spot.x) || !Number.isInteger(spot.y) || spot.x < 0 || spot.x >= BOARD_SIZE || spot.y < 0 || spot.y >= BOARD_SIZE) {
-      errors.push(`${prefix}: coordinate (${spot.x}, ${spot.y}) out of board bounds [0..8]`);
+    if (!Number.isInteger(spot.x) || !Number.isInteger(spot.y) || spot.x < 0 || spot.x >= size || spot.y < 0 || spot.y >= size) {
+      errors.push(`${prefix}: coordinate (${spot.x}, ${spot.y}) out of board bounds [0..${last}]`);
       return;
     }
 
@@ -114,18 +119,18 @@ export function validateMapSetup(setupA) {
     seenAllCoords.add(keyA);
 
     // Goal checks for Seat A: goal is (0, 0)
-    if (spot.x === GOALS.A.x && spot.y === GOALS.A.y) {
+    if (spot.x === goals.A.x && spot.y === goals.A.y) {
       errors.push(`${prefix}: Seat A piece cannot start on own goal (0, 0)`);
     }
 
-    const distToOwnGoal = Math.max(Math.abs(spot.x - GOALS.A.x), Math.abs(spot.y - GOALS.A.y));
+    const distToOwnGoal = Math.max(Math.abs(spot.x - goals.A.x), Math.abs(spot.y - goals.A.y));
     if (distToOwnGoal <= 1) {
       errors.push(`${prefix}: Seat A piece at (${spot.x}, ${spot.y}) is within 1 step of own goal (0, 0)`);
     }
 
-    // Mirror piece B checks: B is at (8 - x, 8 - y)
-    const bx = BOARD_SIZE - 1 - spot.x;
-    const by = BOARD_SIZE - 1 - spot.y;
+    // Mirror piece B checks: B is at (size - 1 - x, size - 1 - y)
+    const bx = size - 1 - spot.x;
+    const by = size - 1 - spot.y;
     const keyB = `${bx},${by}`;
 
     if (seenAllCoords.has(keyB)) {
@@ -133,13 +138,13 @@ export function validateMapSetup(setupA) {
     }
     seenAllCoords.add(keyB);
 
-    if (bx === GOALS.B.x && by === GOALS.B.y) {
-      errors.push(`${prefix}: Seat B piece cannot start on own goal (8, 8)`);
+    if (bx === goals.B.x && by === goals.B.y) {
+      errors.push(`${prefix}: Seat B piece cannot start on own goal (${goals.B.x}, ${goals.B.y})`);
     }
 
-    const distToBGoal = Math.max(Math.abs(bx - GOALS.B.x), Math.abs(by - GOALS.B.y));
+    const distToBGoal = Math.max(Math.abs(bx - goals.B.x), Math.abs(by - goals.B.y));
     if (distToBGoal <= 1) {
-      errors.push(`${prefix}: Seat B piece at (${bx}, ${by}) is within 1 step of own goal (8, 8)`);
+      errors.push(`${prefix}: Seat B piece at (${bx}, ${by}) is within 1 step of own goal (${goals.B.x}, ${goals.B.y})`);
     }
   });
 
@@ -156,10 +161,13 @@ export function validateMapSetup(setupA) {
 /**
  * Validates a generated CoreState instance against all map invariants.
  * @param {unknown} state
+ * @param {number} [size=9] board size
  * @returns {{ ok: boolean, errors: string[] }}
  */
-export function validateMapState(state) {
+export function validateMapState(state, size = BOARD_SIZE) {
   const errors = [];
+  const goals = goalsForSize(size);
+  const last = size - 1;
 
   if (!state || typeof state !== "object" || Array.isArray(state)) {
     return { ok: false, errors: ["State must be a non-null object"] };
@@ -235,8 +243,8 @@ export function validateMapState(state) {
       countsBySeat[p.player][p.type] += 1;
     }
 
-    if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.x >= BOARD_SIZE || p.y < 0 || p.y >= BOARD_SIZE) {
-      errors.push(`${pPath}: coordinates (${p.x}, ${p.y}) out of bounds [0..8]`);
+    if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.x >= size || p.y < 0 || p.y >= size) {
+      errors.push(`${pPath}: coordinates (${p.x}, ${p.y}) out of bounds [0..${last}]`);
       return;
     }
 
@@ -248,19 +256,19 @@ export function validateMapState(state) {
 
     if (p.player === "A") {
       piecesA.push(p);
-      if (p.x === GOALS.A.x && p.y === GOALS.A.y) {
+      if (p.x === goals.A.x && p.y === goals.A.y) {
         errors.push(`${pPath}: Seat A piece cannot start on own goal (0, 0)`);
       }
-      if (Math.max(Math.abs(p.x - GOALS.A.x), Math.abs(p.y - GOALS.A.y)) <= 1) {
+      if (Math.max(Math.abs(p.x - goals.A.x), Math.abs(p.y - goals.A.y)) <= 1) {
         errors.push(`${pPath}: Seat A piece at (${p.x}, ${p.y}) is within 1 step of own goal (0, 0)`);
       }
     } else {
       piecesB.push(p);
-      if (p.x === GOALS.B.x && p.y === GOALS.B.y) {
-        errors.push(`${pPath}: Seat B piece cannot start on own goal (8, 8)`);
+      if (p.x === goals.B.x && p.y === goals.B.y) {
+        errors.push(`${pPath}: Seat B piece cannot start on own goal (${goals.B.x}, ${goals.B.y})`);
       }
-      if (Math.max(Math.abs(p.x - GOALS.B.x), Math.abs(p.y - GOALS.B.y)) <= 1) {
-        errors.push(`${pPath}: Seat B piece at (${p.x}, ${p.y}) is within 1 step of own goal (8, 8)`);
+      if (Math.max(Math.abs(p.x - goals.B.x), Math.abs(p.y - goals.B.y)) <= 1) {
+        errors.push(`${pPath}: Seat B piece at (${p.x}, ${p.y}) is within 1 step of own goal (${goals.B.x}, ${goals.B.y})`);
       }
     }
   });
@@ -274,10 +282,10 @@ export function validateMapState(state) {
     }
   }
 
-  // Verify 180° rotational symmetry: for each A(x, y, type) -> exists B(8-x, 8-y, type)
+  // Verify 180° rotational symmetry: for each A(x, y, type) -> exists B(size-1-x, size-1-y, type)
   for (const pa of piecesA) {
-    const expBx = BOARD_SIZE - 1 - pa.x;
-    const expBy = BOARD_SIZE - 1 - pa.y;
+    const expBx = size - 1 - pa.x;
+    const expBy = size - 1 - pa.y;
     const matchingB = piecesB.find((pb) => pb.x === expBx && pb.y === expBy && pb.type === pa.type);
     if (!matchingB) {
       errors.push(`Missing 180° rotational symmetric Seat B piece for Seat A ${pa.type} at (${pa.x}, ${pa.y}) -> expected at (${expBx}, ${expBy})`);
@@ -285,12 +293,12 @@ export function validateMapState(state) {
   }
 
   // Legal moves verification for both seats
-  const legalMovesA = computePureLegalMoves(state.pieces, "A");
+  const legalMovesA = computePureLegalMoves(state.pieces, "A", size);
   if (legalMovesA.length === 0) {
     errors.push("Seat A has zero legal moves from initial position");
   }
 
-  const legalMovesB = computePureLegalMoves(state.pieces, "B");
+  const legalMovesB = computePureLegalMoves(state.pieces, "B", size);
   if (legalMovesB.length === 0) {
     errors.push("Seat B has zero legal moves from initial position");
   }
@@ -329,7 +337,7 @@ export function getMap(id, options = {}) {
   };
 
   if (options.includeState) {
-    descriptor.initialState = createMapState(id, def.revision);
+    descriptor.initialState = createMapState(id, def.revision, options.size);
   }
 
   return descriptor;
@@ -341,9 +349,10 @@ export function getMap(id, options = {}) {
  * Throws on unknown map or unsupported revision.
  * @param {string} [id="classic"]
  * @param {number} [revision=1]
+ * @param {number} [size=9] board size (9..25); the 9x9 formation is shifted to the seat's own corner
  * @returns {object} Full initial CoreState
  */
-export function createMapState(id = "classic", revision = 1) {
+export function createMapState(id = "classic", revision = 1, size = BOARD_SIZE) {
   const def = MAP_DEFINITIONS[id];
   if (!def) {
     throw new Error(`Unknown map id: '${id}'`);
@@ -353,10 +362,12 @@ export function createMapState(id = "classic", revision = 1) {
     throw new Error(`Unsupported revision ${revision} for map '${id}'; expected ${def.revision}`);
   }
 
-  const state = createFreshCoreState(def.setupA);
-  const validation = validateMapState(state);
+  assertBoardSize(size);
+  const setupA = size === BOARD_SIZE ? def.setupA : shiftSetupToSize(def.setupA, size);
+  const state = createFreshCoreState(setupA, undefined, size);
+  const validation = validateMapState(state, size);
   if (!validation.ok) {
-    throw new Error(`Map '${id}' generated invalid initial state: ${validation.errors.join("; ")}`);
+    throw new Error(`Map '${id}' (size ${size}) generated invalid initial state: ${validation.errors.join("; ")}`);
   }
 
   return cloneDeep(state);

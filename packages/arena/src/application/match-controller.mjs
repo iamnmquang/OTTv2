@@ -45,8 +45,11 @@ const VALID_PIECE_TYPES = new Set(["dam", "la", "keo"]);
 /**
  * Validates initial host state for referee safety.
  * Returns null if valid, or an error code string if invalid.
+ * @param {object} state
+ * @param {object} engine
+ * @param {number} [boardSize=9] size of the (square) board the state belongs to
  */
-export function checkInitialState(state, engine) {
+export function checkInitialState(state, engine, boardSize = 9) {
   if (!state || typeof state !== "object") return "missing_initial_state";
   if (!VALID_SEATS.has(state.turn)) return "invalid_initial_turn";
 
@@ -94,7 +97,7 @@ export function checkInitialState(state, engine) {
     if (!VALID_SEATS.has(p.player)) return "invalid_piece_player";
     if (!VALID_PIECE_TYPES.has(p.type)) return "invalid_piece_type";
 
-    if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.x > 8 || p.y < 0 || p.y > 8) {
+    if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.x >= boardSize || p.y < 0 || p.y >= boardSize) {
       return "invalid_piece_coordinates";
     }
 
@@ -210,7 +213,7 @@ export function createHeadlessMatchController(options) {
       }
 
       // Validate host initial state
-      const initialError = checkInitialState(resolvedInitialState, engine);
+      const initialError = checkInitialState(resolvedInitialState, engine, rulesetSnapshot.boardWidth);
       if (initialError) {
         return createInfrastructureError({
           code: initialError,
@@ -348,6 +351,7 @@ export function createHeadlessMatchController(options) {
             rulesetHash,
             boardWidth: rulesetSnapshot.boardWidth,
             boardHeight: rulesetSnapshot.boardHeight,
+            goals: cloneDeep(rulesetSnapshot.goals),
             ply,
             turn: seat,
             timeRemainingMs: remainingMs[seat],
@@ -567,7 +571,7 @@ export function createHeadlessMatchController(options) {
 
           // Validate bot action format
           const action = raceResult.action;
-          const actionValidation = validateBotAction(action, requestId);
+          const actionValidation = validateBotAction(action, requestId, rulesetSnapshot.boardWidth, rulesetSnapshot.boardHeight);
           if (!actionValidation.ok) {
             finalResult = createForfeitResult({
               winner: otherSeat,

@@ -11,12 +11,26 @@ import sys
 
 # Loại quân thắng loại quân nào: Đấm ăn Kéo, Kéo ăn Lá, Lá ăn Đấm.
 BEATS = {"dam": "keo", "keo": "la", "la": "dam"}
-# Ô thắng của mỗi ghế (x = cột 0..8, y = hàng 0..8). A thắng ở (0, 0), B thắng ở (8, 8).
-GOAL = {"A": (0, 0), "B": (8, 8)}
+# Kích thước bàn KHÔNG cố định: mỗi giai đoạn của giải có thể dùng bàn a×a khác nhau (đọc a từ input mỗi lượt).
+# Đừng viết cứng 9 hay 8 trong bot. A thắng ở (0, 0), B thắng ở góc đối diện (a-1, a-1).
 
 
 def log(*parts):
     print(*parts, file=sys.stderr, flush=True)
+
+
+def board_size(turn):
+    """Số ô mỗi cạnh của bàn (a trong bàn a×a)."""
+    return turn.get("boardWidth", 9)
+
+
+def goal_of(turn, seat):
+    """Ô thắng (x, y) của ghế `seat`."""
+    goals = turn.get("goals")
+    if goals:
+        return goals[seat]["x"], goals[seat]["y"]
+    last = board_size(turn) - 1
+    return (0, 0) if seat == "A" else (last, last)
 
 
 def choose_move(turn):
@@ -24,6 +38,7 @@ def choose_move(turn):
 
     turn có các trường chính:
       turn["turn"]             ghế của bot: "A" hoặc "B"
+      turn["boardWidth"]       kích thước bàn a (bàn a×a); turn["goals"] là ô thắng của hai ghế
       turn["board"]            danh sách quân: {"id", "owner": "A"/"B", "type": "dam"/"la"/"keo", "x", "y"}
       turn["legalMoves"]       mọi nước hợp lệ: {"from": {"x", "y"}, "to": {"x", "y"}}
       turn["ply"]              số thứ tự nước trong ván (từ 1)
@@ -34,7 +49,7 @@ def choose_move(turn):
 
     # ===== Viết chiến thuật ở đây =====
     # Ví dụ: đi thẳng vào ô thắng nếu được.
-    goal_x, goal_y = GOAL[turn["turn"]]
+    goal_x, goal_y = goal_of(turn, turn["turn"])
     for move in moves:
         if move["to"]["x"] == goal_x and move["to"]["y"] == goal_y:
             return move

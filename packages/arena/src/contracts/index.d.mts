@@ -70,6 +70,8 @@ export interface BotTurn {
   rulesetHash: string;
   boardWidth: number;
   boardHeight: number;
+  /** Winning cell of each seat (A at (0, 0), B at (boardWidth - 1, boardHeight - 1)). */
+  goals: { A: { x: number; y: number }; B: { x: number; y: number } };
   ply: number;
   turn: Seat;
   timeRemainingMs: number;
@@ -308,6 +310,12 @@ export declare const DRAW_REASONS: readonly DrawReason[];
 export declare const FORFEIT_REASONS: readonly ForfeitReason[];
 
 export declare const RULESET_ID_G_V1: "ottv2-g-default-v1";
+export declare const DEFAULT_BOARD_SIZE: 9;
+export declare const MIN_BOARD_SIZE: number;
+export declare const MAX_BOARD_SIZE: number;
+export declare function isValidBoardSize(size: unknown): boolean;
+/** "ottv2-g-default-v1" for 9, "ottv2-g-sq<size>-v1" for the other sizes. */
+export declare function rulesetIdForSize(size: number): string;
 export declare const MATCH_POLICY_VERSION: "arena-policy-v1";
 export declare const DEFAULT_MATCH_POLICY: Readonly<MatchPolicy>;
 
@@ -351,7 +359,12 @@ export declare function validatePosition(
 ): ValidationError[];
 
 export declare function validateBotTurn(turn: unknown): ValidationResult;
-export declare function validateBotAction(action: unknown, expectedRequestId?: string): ValidationResult;
+export declare function validateBotAction(
+  action: unknown,
+  expectedRequestId?: string,
+  boardWidth?: number,
+  boardHeight?: number
+): ValidationResult;
 export declare function validateArenaMatchResult(result: unknown): ValidationResult;
 export declare function validateMatchPolicy(policy: unknown): ValidationResult;
 export declare function validateRulesetSnapshot(snapshot: unknown): ValidationResult;

@@ -8,6 +8,8 @@
       ? require("./config")
       : global.OTT_CONFIG;
   const api = factory(rules, config);
+  // `withConfig(rulesForThatBoard, configForThatBoard)` builds the AI for another board size (see rules.withConfig).
+  api.withConfig = (customRules, customConfig) => factory(customRules, customConfig);
   if (typeof module === "object" && module && module.exports) module.exports = api;
   global.OTT_AI = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function (rules, config) {

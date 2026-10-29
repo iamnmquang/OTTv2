@@ -13,11 +13,18 @@ import {
 import { DEFAULT_MATCH_POLICY, MATCH_POLICY_VERSION, canonicalMatchPolicyJson } from "../domain/match-policy.mjs";
 import {
   RULESET_ID_G_V1,
+  rulesetIdForSize,
   canonicalize,
   canonicalSerialize,
   canonicalRulesetJson,
   createCurrentRulesetSnapshot
 } from "../domain/ruleset.mjs";
+import {
+  DEFAULT_BOARD_SIZE,
+  MIN_BOARD_SIZE,
+  MAX_BOARD_SIZE,
+  isValidBoardSize
+} from "../domain/board-size.mjs";
 import { checkInitialState } from "../application/match-controller.mjs";
 
 export const PROTOCOL_VERSION = 1;
@@ -97,6 +104,11 @@ export {
   canonicalMatchPolicyJson,
   // Ruleset
   RULESET_ID_G_V1,
+  rulesetIdForSize,
+  DEFAULT_BOARD_SIZE,
+  MIN_BOARD_SIZE,
+  MAX_BOARD_SIZE,
+  isValidBoardSize,
   canonicalize,
   canonicalSerialize,
   canonicalRulesetJson,

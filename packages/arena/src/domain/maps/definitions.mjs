@@ -5,6 +5,8 @@
  * Zero Node.js imports. Standard Web API / Pure JS.
  */
 
+// 9 is the default (and original) board. Maps are written for 9x9; createMapState(id, revision, size) shifts them to
+// larger boards (see ../board-size.mjs), so every map keeps its shape anchored to its own corner.
 export const BOARD_SIZE = 9;
 export const INITIAL_CLOCK_MS = 600000; // 10 minutes per seat
 
@@ -103,9 +105,10 @@ export const CENTER_SETUP_A = Object.freeze([
  * Generates the full 20-piece array for both Seat A and Seat B (180° rotated).
  * Matches game-core piece ID format: A-${type}-${i} and B-${type}-${i}.
  * @param {Array<{type: string, x: number, y: number}>} setupA
+ * @param {number} [size=9] board size; Seat B is the rotation about the centre of an size x size board
  * @returns {Array<{id: string, player: "A"|"B", type: string, x: number, y: number}>}
  */
-export function generateCorePieces(setupA) {
+export function generateCorePieces(setupA, size = BOARD_SIZE) {
   const pieces = [];
   setupA.forEach((spot, i) => {
     pieces.push({
@@ -119,8 +122,8 @@ export function generateCorePieces(setupA) {
       id: `B-${spot.type}-${i}`,
       player: "B",
       type: spot.type,
-      x: BOARD_SIZE - 1 - spot.x,
-      y: BOARD_SIZE - 1 - spot.y
+      x: size - 1 - spot.x,
+      y: size - 1 - spot.y
     });
   });
   return pieces;
@@ -132,7 +135,7 @@ export function generateCorePieces(setupA) {
  * @param {number} [initialClockMs=600000]
  * @returns {object}
  */
-export function createFreshCoreState(setupA, initialClockMs = INITIAL_CLOCK_MS) {
+export function createFreshCoreState(setupA, initialClockMs = INITIAL_CLOCK_MS, size = BOARD_SIZE) {
   return {
     turn: "A",
     winner: null,
@@ -142,7 +145,7 @@ export function createFreshCoreState(setupA, initialClockMs = INITIAL_CLOCK_MS) 
       remainingMs: { A: initialClockMs, B: initialClockMs },
       runningSeat: "A"
     },
-    pieces: generateCorePieces(setupA)
+    pieces: generateCorePieces(setupA, size)
   };
 }
 

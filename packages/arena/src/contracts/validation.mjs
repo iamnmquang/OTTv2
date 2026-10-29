@@ -174,7 +174,7 @@ export function validateBotTurn(turn) {
   return { ok: errors.length === 0, errors };
 }
 
-export function validateBotAction(action, expectedRequestId) {
+export function validateBotAction(action, expectedRequestId, boardWidth = 9, boardHeight = 9) {
   const errors = [];
   if (!action || typeof action !== "object") {
     return {
@@ -204,8 +204,8 @@ export function validateBotAction(action, expectedRequestId) {
   if (!action.move || typeof action.move !== "object") {
     errors.push({ path: "action.move", code: "missing_move", message: "Action must include a move object" });
   } else {
-    errors.push(...validatePosition(action.move.from, "action.move.from"));
-    errors.push(...validatePosition(action.move.to, "action.move.to"));
+    errors.push(...validatePosition(action.move.from, "action.move.from", boardWidth, boardHeight));
+    errors.push(...validatePosition(action.move.to, "action.move.to", boardWidth, boardHeight));
   }
 
   if (action.comment !== undefined) {
@@ -302,7 +302,7 @@ export function validateArenaMatchResult(result) {
 /**
  * Helper to validate CoreEvent schema.
  */
-function validateCoreEvent(ev, path) {
+function validateCoreEvent(ev, path, size = 9) {
   const errs = [];
   if (!ev || typeof ev !== "object" || Array.isArray(ev)) {
     return [{ path, code: "invalid_core_event", message: "Core event must be a non-null object" }];
@@ -314,8 +314,8 @@ function validateCoreEvent(ev, path) {
     if (typeof ev.pieceId !== "string" || ev.pieceId.length === 0) {
       errs.push({ path: `${path}.pieceId`, code: "invalid_piece_id", message: "Missing pieceId in move event" });
     }
-    errs.push(...validatePosition(ev.from, `${path}.from`));
-    errs.push(...validatePosition(ev.to, `${path}.to`));
+    errs.push(...validatePosition(ev.from, `${path}.from`, size, size));
+    errs.push(...validatePosition(ev.to, `${path}.to`, size, size));
   } else if (ev.type === "capture") {
     if (typeof ev.pieceId !== "string" || ev.pieceId.length === 0) {
       errs.push({ path: `${path}.pieceId`, code: "invalid_piece_id", message: "Missing pieceId in capture event" });
@@ -326,8 +326,8 @@ function validateCoreEvent(ev, path) {
     if (!VALID_PIECE_TYPES.has(ev.capturedType)) {
       errs.push({ path: `${path}.capturedType`, code: "invalid_piece_type", message: `Invalid capturedType in capture event: '${ev.capturedType}'` });
     }
-    errs.push(...validatePosition(ev.from, `${path}.from`));
-    errs.push(...validatePosition(ev.to, `${path}.to`));
+    errs.push(...validatePosition(ev.from, `${path}.from`, size, size));
+    errs.push(...validatePosition(ev.to, `${path}.to`, size, size));
   } else if (ev.type === "win") {
     if (!VALID_SEATS.has(ev.winner)) {
       errs.push({ path: `${path}.winner`, code: "invalid_seat", message: `Invalid winner in win event: '${ev.winner}'` });
@@ -342,17 +342,17 @@ function validateCoreEvent(ev, path) {
 /**
  * Helper to validate bounded pieces array within a CoreState.
  */
-function validateStatePieces(pieces, basePath) {
+function validateStatePieces(pieces, basePath, size = 9) {
   const errs = [];
   if (!Array.isArray(pieces)) {
     return [{ path: `${basePath}.pieces`, code: "invalid_pieces", message: "pieces must be an array" }];
   }
 
-  if (pieces.length > 81) {
+  if (pieces.length > size * size) {
     errs.push({
       path: `${basePath}.pieces`,
       code: "piece_count_exceeded",
-      message: `Piece count ${pieces.length} exceeds 81 pieces on 9x9 board`
+      message: `Piece count ${pieces.length} exceeds ${size * size} pieces on ${size}x${size} board`
     });
   }
 
@@ -384,7 +384,7 @@ function validateStatePieces(pieces, basePath) {
       errs.push({ path: `${pPath}.type`, code: "invalid_piece_type", message: `Piece type must be 'dam', 'la', or 'keo', got '${p.type}'` });
     }
 
-    const coordErrors = validatePosition(p, pPath, 9, 9);
+    const coordErrors = validatePosition(p, pPath, size, size);
     errs.push(...coordErrors);
 
     if (Number.isInteger(p.x) && Number.isInteger(p.y)) {
@@ -405,7 +405,7 @@ function validateStatePieces(pieces, basePath) {
 /**
  * Helper to validate full CoreState envelope (turn, winner, reason, eliminatedPlayer, clocks, runningSeat, pieces).
  */
-function validateCoreStateEnvelope(state, path, { isTerminal = false, isInitial = false, isFinalAcceptedFrame = false, resultOutcome = null } = {}) {
+function validateCoreStateEnvelope(state, path, { isTerminal = false, isInitial = false, isFinalAcceptedFrame = false, resultOutcome = null, size = 9 } = {}) {
   const errs = [];
   if (!state || typeof state !== "object" || Array.isArray(state)) {
     return [{ path, code: "invalid_core_state", message: "Core state must be a non-null object" }];
@@ -495,7 +495,7 @@ function validateCoreStateEnvelope(state, path, { isTerminal = false, isInitial 
   }
 
   // 4. pieces
-  errs.push(...validateStatePieces(state.pieces, path));
+  errs.push(...validateStatePieces(state.pieces, path, size));
   return errs;
 }
 
@@ -582,6 +582,9 @@ export function validateReplayDocument(doc, options = {}) {
     });
   }
 
+  // Board size of this replay (a x a); every coordinate below is checked against it.
+  const boardSize = rulesetVal.ok ? doc.rulesetSnapshot.boardWidth : 9;
+
   // 5. Match policy validation
   const policyVal = validateMatchPolicy(doc.matchPolicy);
   if (!policyVal.ok) {
@@ -634,7 +637,7 @@ export function validateReplayDocument(doc, options = {}) {
   }
 
   // 8. InitialCoreState envelope validation
-  errors.push(...validateCoreStateEnvelope(doc.initialCoreState, "document.initialCoreState", { isInitial: true }));
+  errors.push(...validateCoreStateEnvelope(doc.initialCoreState, "document.initialCoreState", { isInitial: true, size: boardSize }));
 
   // 9. Frames validation
   if (!Array.isArray(doc.frames)) {
@@ -661,7 +664,7 @@ export function validateReplayDocument(doc, options = {}) {
           errors.push({ path: "document.frames[0].lastMove", code: "invalid_frame_0_last_move", message: "Frame 0 lastMove must be null" });
         }
 
-        errors.push(...validateCoreStateEnvelope(f0.coreState, "document.frames[0].coreState", { isInitial: true }));
+        errors.push(...validateCoreStateEnvelope(f0.coreState, "document.frames[0].coreState", { isInitial: true, size: boardSize }));
 
         // Frame 0 canonical equivalence with initialCoreState
         if (f0.coreState && doc.initialCoreState && typeof f0.coreState === "object" && typeof doc.initialCoreState === "object") {
@@ -691,7 +694,8 @@ export function validateReplayDocument(doc, options = {}) {
       const isFinalAcceptedFrame = (k === acceptedPlies);
       errors.push(...validateCoreStateEnvelope(frame.coreState, `${fPath}.coreState`, {
         isFinalAcceptedFrame,
-        resultOutcome: doc.result?.outcome
+        resultOutcome: doc.result?.outcome,
+        size: boardSize
       }));
 
       const lm = frame.lastMove;
@@ -716,8 +720,8 @@ export function validateReplayDocument(doc, options = {}) {
         errors.push({ path: `${fPath}.lastMove.seat`, code: "invalid_seat", message: `lastMove.seat must be 'A' or 'B'` });
       }
 
-      errors.push(...validatePosition(lm.from, `${fPath}.lastMove.from`));
-      errors.push(...validatePosition(lm.to, `${fPath}.lastMove.to`));
+      errors.push(...validatePosition(lm.from, `${fPath}.lastMove.from`, boardSize, boardSize));
+      errors.push(...validatePosition(lm.to, `${fPath}.lastMove.to`, boardSize, boardSize));
 
       if (lm.from && lm.to && Number.isInteger(lm.from.x) && Number.isInteger(lm.from.y) && Number.isInteger(lm.to.x) && Number.isInteger(lm.to.y)) {
         if (lm.from.x === lm.to.x && lm.from.y === lm.to.y) {
@@ -758,7 +762,7 @@ export function validateReplayDocument(doc, options = {}) {
         errors.push({ path: `${fPath}.lastMove.events`, code: "invalid_core_event", message: "lastMove.events must be an array" });
       } else {
         for (let ei = 0; ei < lm.events.length; ei++) {
-          errors.push(...validateCoreEvent(lm.events[ei], `${fPath}.lastMove.events[${ei}]`));
+          errors.push(...validateCoreEvent(lm.events[ei], `${fPath}.lastMove.events[${ei}]`, boardSize));
         }
       }
 
@@ -1058,7 +1062,7 @@ export function validateReplayDocument(doc, options = {}) {
   }
 
   // 11. TerminalCoreState & Result consistency
-  errors.push(...validateCoreStateEnvelope(doc.terminalCoreState, "document.terminalCoreState", { isTerminal: true }));
+  errors.push(...validateCoreStateEnvelope(doc.terminalCoreState, "document.terminalCoreState", { isTerminal: true, size: boardSize }));
 
   if (doc.result && doc.terminalCoreState && typeof doc.terminalCoreState === "object") {
     if (doc.result.outcome === "win") {
